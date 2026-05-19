@@ -1,0 +1,104 @@
+const CROWD_URL = import.meta.env.VITE_Q_CROWD_URL || "http://localhost:5173";
+
+export default function App() {
+  return (
+    <>
+      <header className="nav">
+        <a href="#" className="logo">Q</a>
+        <nav>
+          <a href="#how">How it works</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#download">Download</a>
+        </nav>
+      </header>
+
+      <main>
+        <section className="hero">
+          <p className="eyebrow">For DJs · Local-first · Crowd on any network</p>
+          <h1>Your queue.<br />Your rules.<br />Your library.</h1>
+          <p className="lead">
+            Q replaces awkward booth requests with a QR sticker. Crowd searches your catalog on
+            cellular data. You accept or decline — with transition ideas, not autoplay.
+          </p>
+          <div className="hero-actions">
+            <a className="btn primary" href="#download">Download Q for Mac / Windows</a>
+            <a className="btn ghost" href={`${CROWD_URL}`} target="_blank" rel="noreferrer">
+              Crowd portal demo
+            </a>
+          </div>
+        </section>
+
+        <section id="how" className="section">
+          <h2>How it works</h2>
+          <div className="grid three">
+            <article className="card">
+              <h3>1 · Local library</h3>
+              <p>
+                Import Rekordbox or Serato from USB and local files. Music stays on your laptop —
+                never uploaded.
+              </p>
+            </article>
+            <article className="card">
+              <h3>2 · QR sticker</h3>
+              <p>
+                Print a sticker for your laptop. Crowd scans on LTE — no venue Wi‑Fi required.
+              </p>
+            </article>
+            <article className="card">
+              <h3>3 · Sync when ready</h3>
+              <p>
+                DJ offline at the booth? No problem. Tap <strong>Sync now</strong> over hotspot
+                between sets to pull requests and push decisions.
+              </p>
+            </article>
+          </motion>
+        </section>
+
+        <section id="pricing" className="section">
+          <h2>Pricing</h2>
+          <div className="grid two pricing">
+            <article className="card">
+              <h3>Q Free</h3>
+              <p className="price">$0</p>
+              <ul>
+                <li>Crowd request portal + in-stock search</li>
+                <li>Accept / decline gatekeeper</li>
+                <li>BPM, key &amp; basic transition hints</li>
+                <li>Offline booth + sync outbox</li>
+              </ul>
+            </article>
+            <article className="card pro">
+              <h3>Q Pro</h3>
+              <p className="price">Coming soon</p>
+              <ul>
+                <li>Everything in Free</li>
+                <li>AI transition co-pilot — wordplay, energy arcs, blend paths</li>
+                <li>Harmonic &amp; popular public transitions</li>
+                <li>Priority sync &amp; session analytics</li>
+              </ul>
+              <p className="muted small">Toggle Pro in the desktop app today to preview stub suggestions.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="download" className="section">
+          <h2>Download</h2>
+          <p className="lead narrow">
+            Q runs as a desktop app on your DJ laptop (Mac &amp; Windows). Build from source with
+            Rust + Node, or grab installers once we ship beta builds.
+          </p>
+          <pre className="code">npm run tauri:dev -w @q/desktop</pre>
+          <p className="muted small">
+            Full stack locally: <code>npm run dev:api</code>, <code>npm run dev:crowd</code>,{" "}
+            <code>npm run dev:web</code>
+          </p>
+        </section>
+      </main>
+
+      <footer className="footer">
+        <p>Q — queue, not chaos.</p>
+        <p className="muted small">Crowd portal lives at your deployed /r/:code URLs · DJs use the desktop app</p>
+      </footer>
+    </>
+  );
+}

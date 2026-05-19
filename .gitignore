@@ -1,0 +1,13 @@
+node_modules/
+dist/
+terminals/
+agent-tools/
+agent-transcripts/
+mcps/
+data/
+*.db
+.env
+.env.local
+target/
+apps/desktop/src-tauri/target/
+.DS_Store

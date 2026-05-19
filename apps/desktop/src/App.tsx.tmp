@@ -1,0 +1,421 @@
+import { useCallback, useEffect, useState } from "react";
+import type {
+  CrowdRequest,
+  CreateSessionResponse,
+  PlanTier,
+  TransitionSuggestion,
+} from "@q/shared";
+import { createSession, updateRequest } from "./api";
+import { importRekordboxAuto, importRekordboxFromDialog } from "./rekordbox";
+import { importSeratoAuto, importSeratoFromDialog } from "./serato";
+import QrSticker from "./components/QrSticker";
+import {
+  localSuggestionsOffline,
+  mergeRequests,
+  queueDecisionIfOffline,
+  queueLibraryIfOffline,
+  runSync,
+} from "./sync/engine";
+import { getDecisions, outboxCounts } from "./sync/outbox";
+
+const STORAGE_KEY = "q-gig";
+const PLAN_KEY = "q-plan";
+type DjSoftware = "rekordbox" | "serato";
+
+interface GigState {
+  sessionId: string;
+  code: string;
+  name: string;
+  djToken: string;
+  crowdUrl: string;
+  trackCount: number;
+}
+
+function loadGig(): GigState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as GigState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadPlan(): PlanTier {
+  return localStorage.getItem(PLAN_KEY) === "pro" ? "pro" : "free";
+}
+
+function saveGig(gig: GigState | null) {
+  if (gig) localStorage.setItem(STORAGE_KEY, JSON.stringify(gig));
+  else localStorage.removeItem(STORAGE_KEY);
+}
+
+export default function App() {
+  const [gig, setGig] = useState<GigState | null>(loadGig);
+  const [requests, setRequests] = useState<CrowdRequest[]>([]);
+  const [suggestions, setSuggestions] = useState<TransitionSuggestion[]>([]);
+  const [online, setOnline] = useState(navigator.onLine);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [djSoftware, setDjSoftware] = useState<DjSoftware>("rekordbox");
+  const [plan, setPlan] = useState<PlanTier>(loadPlan);
+  const [outbox, setOutbox] = useState({ decisions: 0, library: false });
+  const [serverPending, setServerPending] = useState(0);
+
+  const refreshOutbox = useCallback(() => {
+    if (!gig) return;
+    setOutbox(outboxCounts(gig.sessionId));
+  }, [gig]);
+
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(PLAN_KEY, plan);
+  }, [plan]);
+
+  const doSync = useCallback(
+    async (fullPull = false) => {
+      if (!gig || !online) return null;
+      try {
+        const { result, requests: merged, lastSync: ls } = await runSync(
+          gig.sessionId,
+          gig.djToken,
+          plan,
+          requests,
+          { fullPull, lastSync },
+        );
+        setRequests(merged);
+        if (ls) setLastSync(ls);
+        setServerPending(result.pendingOnServer);
+        refreshOutbox();
+        return result;
+      } catch {
+        return null;
+      }
+    },
+    [gig, online, plan, requests, lastSync, refreshOutbox],
+  );
+
+  useEffect(() => {
+    if (!gig || !online) return;
+    doSync(false);
+    const id = setInterval(() => doSync(false), 4000);
+    return () => clearInterval(id);
+  }, [gig, online, doSync]);
+
+  useEffect(() => {
+    if (online && gig) doSync(true);
+  }, [online]);
+
+  useEffect(refreshOutbox, [gig, refreshOutbox]);
+
+  async function syncNow() {
+    if (!gig) return;
+    if (!online) {
+      setMessage("You're offline. Use phone hotspot, then tap Sync now.");
+      return;
+    }
+    setBusy(true);
+    const result = await doSync(true);
+    setBusy(false);
+    if (result) {
+      const parts: string[] = [];
+      if (result.pulled > 0) parts.push(`${result.pulled} new`);
+      if (result.pushedDecisions > 0) parts.push(`${result.pushedDecisions} decisions sent`);
+      if (result.librarySynced) parts.push("library uploaded");
+      setMessage(
+        parts.length > 0
+          ? `Synced: ${parts.join(", ")}. ${result.pendingOnServer} pending on server.`
+          : `Up to date. ${result.pendingOnServer} pending on server.`,
+      );
+    } else {
+      setMessage("Sync failed — try again in a few seconds.");
+    }
+  }
+
+  async function startGig() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res: CreateSessionResponse = await createSession("Tonight");
+      const next: GigState = {
+        sessionId: res.session.id,
+        code: res.session.code,
+        name: res.session.name,
+        djToken: res.djToken,
+        crowdUrl: res.crowdUrl,
+        trackCount: 0,
+      };
+      setGig(next);
+      saveGig(next);
+      setRequests([]);
+      setLastSync(null);
+      setMessage("Gig started. Import your library, print your QR sticker, then sync when ready.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not start gig");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importLibrary(mode: "auto" | "file") {
+    if (!gig) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result =
+        djSoftware === "rekordbox"
+          ? mode === "auto"
+            ? await importRekordboxAuto()
+            : await importRekordboxFromDialog()
+          : mode === "auto"
+            ? await importSeratoAuto()
+            : await importSeratoFromDialog();
+
+      if (!result) {
+        setMessage(
+          mode === "auto"
+            ? djSoftware === "rekordbox"
+              ? "No rekordbox.xml found. Export from Rekordbox or pick the file manually."
+              : "No Serato Subcrates folder found. Point to your _Serato_/Subcrates folder."
+            : "Import cancelled.",
+        );
+        return;
+      }
+
+      const localTracks = result.tracks;
+      const cratesRead =
+        "crateFilesRead" in result ? (result as { crateFilesRead: number }).crateFilesRead : 0;
+      const countLabel =
+        cratesRead > 1
+          ? `${localTracks.length} tracks from ${cratesRead} crates`
+          : `${localTracks.length} tracks`;
+
+      const next = { ...gig, trackCount: localTracks.length };
+      setGig(next);
+      saveGig(next);
+
+      if (online) {
+        const syncResult = await runSync(gig.sessionId, gig.djToken, plan, requests, {
+          fullPull: false,
+          lastSync,
+        });
+        queueLibraryIfOffline(gig.sessionId, localTracks, false);
+        const { syncLibrary } = await import("./api");
+        await syncLibrary(gig.sessionId, gig.djToken, localTracks);
+        setMessage(`Imported ${countLabel} and synced to cloud.`);
+        setServerPending(syncResult.result.pendingOnServer);
+      } else {
+        queueLibraryIfOffline(gig.sessionId, localTracks, true);
+        setMessage(`Imported ${countLabel} locally. Queued — tap Sync when online.`);
+      }
+      refreshOutbox();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDecision(requestId: string, status: "accepted" | "declined") {
+    if (!gig) return;
+    setBusy(true);
+
+    setRequests((prev) =>
+      prev.map((r) => (r.id === requestId ? { ...r, status } : r)),
+    );
+
+    try {
+      if (online) {
+        const res = await updateRequest(gig.sessionId, gig.djToken, requestId, status, plan);
+        setRequests((prev) => prev.map((r) => (r.id === requestId ? res.request : r)));
+        if (status === "accepted") setSuggestions(res.suggestions);
+      } else {
+        queueDecisionIfOffline(gig.sessionId, requestId, status, false);
+        refreshOutbox();
+        if (status === "accepted") setSuggestions(localSuggestionsOffline());
+        setMessage("Saved offline — will send when you sync.");
+      }
+    } catch {
+      queueDecisionIfOffline(gig.sessionId, requestId, status, true);
+      refreshOutbox();
+      if (status === "accepted") setSuggestions(localSuggestionsOffline());
+      setMessage("Queued — tap Sync now when you have signal.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const pending = requests.filter((r) => r.status === "pending");
+  const pendingIds = new Set(getDecisions(gig?.sessionId ?? "").map((d) => d.requestId));
+
+  return (
+    <motion className="shell">
+      <aside className="panel">
+        <h1 className="brand">Q</h1>
+        <p className="muted">DJ Command Center</p>
+
+        <motion className="software-tabs">
+          <button
+            type="button"
+            className={`tab ${djSoftware === "rekordbox" ? "active" : ""}`}
+            onClick={() => setDjSoftware("rekordbox")}
+          >
+            Rekordbox
+          </button>
+          <button
+            type="button"
+            className={`tab ${djSoftware === "serato" ? "active" : ""}`}
+            onClick={() => setDjSoftware("serato")}
+          >
+            Serato
+          </button>
+        </motion>
+
+        <motion className="software-tabs" style={{ marginTop: "0.35rem" }}>
+          <button
+            type="button"
+            className={`tab ${plan === "free" ? "active" : ""}`}
+            onClick={() => setPlan("free")}
+          >
+            Free
+          </button>
+          <button
+            type="button"
+            className={`tab plan-pro ${plan === "pro" ? "active" : ""}`}
+            onClick={() => setPlan("pro")}
+          >
+            Pro
+          </button>
+        </motion>
+
+        {!gig ? (
+          <button className="btn primary" onClick={startGig} disabled={busy}>
+            Start gig
+          </button>
+        ) : (
+          <>
+            <p className="muted" style={{ marginTop: "1rem" }}>
+              {gig.name} · code <strong>{gig.code}</strong>
+            </p>
+            <p className="muted url-line">{gig.crowdUrl}</p>
+            <p className="muted">{gig.trackCount} tracks in local catalog</p>
+            <button className="btn primary" onClick={syncNow} disabled={busy}>
+              Sync now
+            </button>
+            <button className="btn ghost" onClick={() => importLibrary("auto")} disabled={busy}>
+              {djSoftware === "rekordbox" ? "Auto-import Rekordbox" : "Auto-import Serato"}
+            </button>
+            <button className="btn ghost" onClick={() => importLibrary("file")} disabled={busy}>
+              {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates folder…"}
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => {
+                setGig(null);
+                saveGig(null);
+                setRequests([]);
+              }}
+            >
+              End gig
+            </button>
+          </>
+        )}
+
+        <div className={`status ${online ? "online" : "offline"}`}>
+          {online
+            ? "Online — auto-syncing"
+            : "Offline — booth mode. Decisions saved locally."}
+        </div>
+        {gig && (outbox.decisions > 0 || outbox.library) && (
+          <p className="outbox-badge">
+            Queued: {outbox.decisions} decision{outbox.decisions !== 1 ? "s" : ""}
+            {outbox.library ? " · library" : ""}
+          </p>
+        )}
+        {gig && online && serverPending > pending.length && (
+          <p className="outbox-badge server">
+            {serverPending - pending.length} more request(s) on server — tap Sync
+          </p>
+        )}
+        {message && <p className="muted" style={{ marginTop: "0.75rem" }}>{message}</p>}
+      </aside>
+
+      <main className="panel main-panel">
+        {gig && (
+          <QrSticker
+            crowdUrl={gig.crowdUrl}
+            sessionCode={gig.code}
+            gigName={gig.name}
+            disabled={busy}
+          />
+        )}
+        <h2 className="queue-heading">Request queue</h2>
+        {!gig && <p className="empty">Start a gig to receive crowd requests.</p>}
+        {gig && pending.length === 0 && (
+          <p className="empty">
+            No pending requests locally.
+            {!online && " Crowd can still submit — sync to pull them in."}
+          </p>
+        )}
+        <ul className="queue">
+          {pending.map((r) => (
+            <li key={r.id} className="request">
+              {pendingIds.has(r.id) && <span className="badge pending">Queued to sync</span>}
+              <span className={`badge ${r.inStock ? "in" : "out"}`}>
+                {r.inStock ? "In stock" : "Out of stock"}
+              </span>
+              <h3>{r.title}</h3>
+              <p className="meta">{r.artist}</p>
+              <div className="actions">
+                <button
+                  className="btn good"
+                  style={{ flex: 1 }}
+                  disabled={busy}
+                  onClick={() => handleDecision(r.id, "accepted")}
+                >
+                  Accept
+                </button>
+                <button
+                  className="btn bad"
+                  style={{ flex: 1 }}
+                  disabled={busy}
+                  onClick={() => handleDecision(r.id, "declined")}
+                >
+                  Decline
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </main>
+
+      <aside className="panel">
+        <h2 style={{ marginTop: 0 }}>Suggestions</h2>
+        {plan === "pro" && (
+          <p className="muted" style={{ marginBottom: "0.75rem" }}>Q Pro — AI transition co-pilot</p>
+        )}
+        {suggestions.length === 0 && (
+          <p className="muted">Accept a request to see transition ideas.</p>
+        )}
+        <motion className="suggestions">
+          {suggestions.map((s, i) => (
+            <div key={i} className={`suggestion ${s.pro ? "pro" : ""}`}>
+              <strong>{s.label}</strong>
+              <span>{s.detail}</span>
+            </div>
+          ))}
+        </motion>
+      </aside>
+    </motion>
+  );
+}

@@ -1,0 +1,71 @@
+import { useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { exportStickerPng, printSticker } from "../lib/qr-sticker";
+
+interface QrStickerProps {
+  crowdUrl: string;
+  sessionCode: string;
+  gigName: string;
+  disabled?: boolean;
+}
+
+export default function QrSticker({
+  crowdUrl,
+  sessionCode,
+  gigName,
+  disabled,
+}: QrStickerProps) {
+  const stickerRef = useRef<HTMLDivElement>(null);
+
+  async function savePng() {
+    if (!stickerRef.current) return;
+    await exportStickerPng(stickerRef.current, `q-sticker-${sessionCode}.png`);
+  }
+
+  async function copyUrl() {
+    try {
+      await navigator.clipboard.writeText(crowdUrl);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  return (
+    <section className="sticker-section">
+      <h2 className="sticker-heading">QR sticker</h2>
+      <p className="muted sticker-hint">
+        Print and put on your laptop. Crowd scans on LTE — no venue Wi‑Fi needed.
+      </p>
+
+      <div ref={stickerRef} className="sticker-card" id="q-print-sticker">
+        <p className="sticker-brand">Q</p>
+        <p className="sticker-tagline">Request a track</p>
+        <motion className="sticker-qr-wrap">
+          <QRCodeSVG
+            value={crowdUrl}
+            size={200}
+            level="M"
+            bgColor="#ffffff"
+            fgColor="#0a0a0f"
+            includeMargin
+          />
+        </motion>
+        <p className="sticker-scan">Scan with your camera</p>
+        <p className="sticker-gig">{gigName}</p>
+        <p className="sticker-code">Code: {sessionCode}</p>
+      </motion>
+
+      <div className="sticker-actions">
+        <button type="button" className="btn primary" disabled={disabled} onClick={savePng}>
+          Save PNG
+        </button>
+        <button type="button" className="btn ghost" disabled={disabled} onClick={() => printSticker()}>
+          Print
+        </button>
+        <button type="button" className="btn ghost" disabled={disabled} onClick={copyUrl}>
+          Copy URL
+        </button>
+      </motion>
+    </section>
+  );
+}

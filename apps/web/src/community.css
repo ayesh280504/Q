@@ -1,0 +1,278 @@
+.community-page {
+  min-height: 100vh;
+  background: #0a0a0f;
+  color: #f4f4f5;
+}
+
+.community-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #1a1a24;
+}
+
+.community-nav nav {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.community-nav .logo {
+  display: flex;
+  align-items: center;
+}
+
+.community-nav a {
+  color: #a1a1aa;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.community-nav .q-logo {
+  filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.45));
+}
+
+.community-nav a:hover {
+  color: #fff;
+}
+
+.community-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.community-header h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.75rem;
+}
+
+.muted {
+  color: #9ca3af;
+}
+
+.muted.small,
+.small {
+  font-size: 0.85rem;
+}
+
+.error {
+  color: #f87171;
+}
+
+.mix-feed {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mix-card {
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: #14141f;
+  border: 1px solid #2a2a3a;
+}
+
+.mix-card h2,
+.mix-card h3 {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+}
+
+.mix-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.dj-link {
+  color: #c4b5fd;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.verified {
+  color: #7c3aed;
+  margin-left: 0.25rem;
+}
+
+.plays {
+  color: #6b7280;
+}
+
+.mix-desc {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  margin: 0.35rem 0 0.75rem;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.55rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: #7c3aed;
+  color: #fff;
+}
+
+.btn.ghost {
+  background: transparent;
+  color: #a1a1aa;
+  border: 1px solid #2a2a3a;
+  margin-top: 0.5rem;
+}
+
+.profile-header .handle {
+  color: #7c3aed;
+}
+
+.profile-header .bio {
+  margin-top: 0.75rem;
+  line-height: 1.5;
+}
+
+.section-label {
+  margin-top: 2rem;
+  font-size: 1rem;
+}
+
+.auth-form-wrap {
+  max-width: 400px;
+}
+
+.auth-form label {
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.auth-form input[type="text"],
+.auth-form input[type="email"],
+.auth-form input[type="password"],
+.auth-form input:not([type]) {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #2a2a3a;
+  background: #0f0f14;
+  color: #fff;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  color: #d4d4d8 !important;
+}
+
+.switch-auth {
+  margin-top: 1.5rem;
+}
+
+.switch-auth a {
+  color: #c4b5fd;
+}
+
+.community-teaser .btn-link {
+  color: #c4b5fd;
+  font-weight: 600;
+}
+
+.back-link {
+  margin-top: 2rem;
+}
+
+.back-link a {
+  color: #9ca3af;
+}
+
+.google-btn {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  background: #fff;
+  color: #111;
+  border: 1px solid #3f3f46;
+  font-weight: 600;
+}
+
+.google-btn:hover {
+  background: #f4f4f5;
+}
+
+.auth-divider {
+  text-align: center;
+  font-size: 0.85rem;
+  margin: 1rem 0;
+}
+
+.onboarding-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.onboarding-card {
+  max-width: 480px;
+  width: 100%;
+  background: #12121a;
+  border: 1px solid #2a2a3a;
+  border-radius: 12px;
+  padding: 1.75rem;
+}
+
+.onboarding-kicker {
+  font-size: 0.75rem;
+  color: #a78bfa;
+  margin: 0 0 0.5rem;
+}
+
+.onboarding-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.btn-link-nav {
+  background: none;
+  border: none;
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-link-nav:hover {
+  color: #fff;
+}
+
+.nav-handle {
+  color: #c4b5fd !important;
+}
+
+.auth-form textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #3f3f46;
+  background: #18181f;
+  color: #f4f4f5;
+  font: inherit;
+  resize: vertical;
+}
