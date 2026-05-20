@@ -107,27 +107,43 @@ fn get_lan_ipv4() -> Option<String> {
     Some(ip.to_string())
 }
 
-/// Latest Serato history session bytes (most recently modified .session file).
-#[tauri::command]
-fn get_serato_latest_session() -> Option<Vec<u8>> {
-    let dir = serato_history_sessions_dir()?;
-    let mut latest: Option<(std::time::SystemTime, PathBuf)> = None;
-
-    let entries = fs::read_dir(&dir).ok()?;
+fn serato_session_files_newest_first() -> Vec<PathBuf> {
+    let Some(dir) = serato_history_sessions_dir() else {
+        return Vec::new();
+    };
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = Vec::new();
+    let entries = match fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("session") {
             continue;
         }
-        let modified = entry.metadata().ok()?.modified().ok()?;
-        match &latest {
-            None => latest = Some((modified, path)),
-            Some((best, _)) if modified > *best => latest = Some((modified, path)),
-            _ => {}
+        if let Ok(modified) = entry.metadata().and_then(|m| m.modified()) {
+            files.push((modified, path));
         }
     }
+    files.sort_by(|a, b| b.0.cmp(&a.0));
+    files.into_iter().map(|(_, p)| p).collect()
+}
 
-    let (_, path) = latest?;
+/// Paths to recent Serato history `.session` files (newest first).
+#[tauri::command]
+fn list_serato_recent_sessions(limit: Option<usize>) -> Vec<String> {
+    let take = limit.unwrap_or(3).min(10);
+    serato_session_files_newest_first()
+        .into_iter()
+        .take(take)
+        .map(|p| p.to_string_lossy().to_string())
+        .collect()
+}
+
+/// Latest Serato history session bytes (most recently modified .session file).
+#[tauri::command]
+fn get_serato_latest_session() -> Option<Vec<u8>> {
+    let path = serato_session_files_newest_first().into_iter().next()?;
     fs::read(&path).ok()
 }
 
@@ -167,6 +183,7 @@ pub fn run() {
             detect_rekordbox_xml,
             detect_serato_subcrates,
             get_serato_latest_session,
+            list_serato_recent_sessions,
             get_lan_ipv4,
         ])
         .run(tauri::generate_context!())

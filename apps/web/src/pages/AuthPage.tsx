@@ -2,8 +2,11 @@ import { FormEvent, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import CommunityNav from "../components/CommunityNav";
 import { supabaseConfigured } from "../context/AuthContext";
+import { savePendingSignup } from "../lib/authPending";
 import { fetchMe, login, register, saveAccountToken, syncProfile } from "../lib/accountApi";
 import { supabase } from "../lib/supabase";
+
+const googleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE === "true";
 import "../community.css";
 
 export default function AuthPage() {
@@ -17,6 +20,7 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const loginMessage = (location.state as { message?: string } | null)?.message;
 
   async function afterSupabaseSession(opts?: { handle?: string; displayName?: string }) {
     try {
@@ -59,12 +63,20 @@ export default function AuthPage() {
             email,
             password,
             options: {
+              emailRedirectTo: `${window.location.origin}/auth/callback`,
               data: { handle, display_name: displayName || handle },
             },
           });
           if (signUpError) throw signUpError;
           if (!data.session) {
-            setInfo("Check your email to confirm your account, then sign in.");
+            savePendingSignup({
+              handle: handle.trim(),
+              displayName: displayName.trim() || handle.trim(),
+            });
+            navigate(
+              `/verify-email?email=${encodeURIComponent(email.trim())}`,
+              { replace: true },
+            );
             return;
           }
           await afterSupabaseSession({
@@ -76,7 +88,17 @@ export default function AuthPage() {
             email,
             password,
           });
-          if (signInError) throw signInError;
+          if (signInError) {
+            const msg = signInError.message.toLowerCase();
+            if (msg.includes("confirm") || msg.includes("verified")) {
+              navigate(
+                `/verify-email?email=${encodeURIComponent(email.trim())}`,
+                { replace: true },
+              );
+              return;
+            }
+            throw signInError;
+          }
           await afterSupabaseSession();
         }
         return;
@@ -106,7 +128,15 @@ export default function AuthPage() {
             : "Access your mix locker and studio."}
         </p>
 
-        {supabaseConfigured && (
+        {!supabaseConfigured && (
+          <p className="error small">
+            Supabase is not loaded — accounts save only on this laptop (not in your Q-DJ
+            dashboard). Restart <code>npm run dev:stack</code> after setting{" "}
+            <code>VITE_SUPABASE_*</code> in the repo root <code>.env</code>.
+          </p>
+        )}
+
+        {supabaseConfigured && googleAuthEnabled && (
           <>
             <button
               type="button"
@@ -162,6 +192,7 @@ export default function AuthPage() {
               minLength={8}
             />
           </label>
+          {loginMessage && mode === "login" && <p className="muted">{loginMessage}</p>}
           {info && <p className="muted">{info}</p>}
           {error && <p className="error">{error}</p>}
           <button type="submit" className="btn primary" disabled={busy}>
@@ -177,6 +208,8 @@ export default function AuthPage() {
           ) : (
             <>
               New here? <Link to="/register">Create account</Link>
+              <br />
+              <Link to="/forgot-password">Forgot password?</Link>
             </>
           )}
         </p>

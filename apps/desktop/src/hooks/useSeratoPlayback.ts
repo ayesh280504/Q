@@ -1,12 +1,18 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { parseSeratoHistorySessionTracks } from "@q/serato";
+import {
+  parseSeratoHistorySession,
+  parseSeratoHistorySessionTracks,
+} from "@q/serato";
 import type { NowPlaying, PlayedTrack } from "../lib/trackMatch";
+
+export type SeratoLinkStatus = "idle" | "ok" | "no_folder" | "no_session" | "empty";
 
 interface UseSeratoPlaybackOptions {
   enabled: boolean;
   onNowPlaying: (track: NowPlaying | null) => void;
   onHistory: (tracks: PlayedTrack[]) => void;
+  onLinkStatus?: (status: SeratoLinkStatus) => void;
 }
 
 /** Poll Serato History — now playing, full session history, BPM/key when present. */
@@ -14,16 +20,20 @@ export function useSeratoPlayback({
   enabled,
   onNowPlaying,
   onHistory,
+  onLinkStatus,
 }: UseSeratoPlaybackOptions) {
   const onNowPlayingRef = useRef(onNowPlaying);
   const onHistoryRef = useRef(onHistory);
+  const onLinkStatusRef = useRef(onLinkStatus);
   onNowPlayingRef.current = onNowPlaying;
   onHistoryRef.current = onHistory;
+  onLinkStatusRef.current = onLinkStatus;
   const lastKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       lastKeyRef.current = null;
+      onLinkStatusRef.current?.("idle");
       return;
     }
 
@@ -31,42 +41,70 @@ export function useSeratoPlayback({
 
     const poll = async () => {
       try {
-        const bytes = await invoke<number[] | null>("get_serato_latest_session");
-        if (stopped || !bytes?.length) return;
+        const paths = await invoke<string[]>("list_serato_recent_sessions", {
+          limit: 3,
+        });
+        if (stopped) return;
 
-        const entries = parseSeratoHistorySessionTracks(new Uint8Array(bytes));
-        if (entries.length === 0) return;
+        if (!paths.length) {
+          onLinkStatusRef.current?.("no_folder");
+          return;
+        }
 
-        onHistoryRef.current(
-          entries.map((e) => ({
-            title: e.title,
-            artist: e.artist,
-            playedAt: e.playedAt,
-          })),
-        );
+        let bestNow: NowPlaying | null = null;
+        let bestHistory: PlayedTrack[] = [];
+        let bestHistoryLen = 0;
 
-        const latest = entries.reduce((a, b) =>
-          (b.playedAt ?? 0) >= (a.playedAt ?? 0) ? b : a,
-        );
+        for (const path of paths) {
+          const bytes = await invoke<number[]>("read_binary_file", { path });
+          if (!bytes?.length) continue;
 
-        const key = `${latest.playedAt ?? 0}:${latest.title}:${latest.artist}:${latest.bpm ?? ""}:${latest.key ?? ""}`;
+          const buf = new Uint8Array(bytes);
+          const entries = parseSeratoHistorySessionTracks(buf);
+          if (entries.length === 0) continue;
+
+          const now = parseSeratoHistorySession(buf);
+          if (entries.length >= bestHistoryLen) {
+            bestHistoryLen = entries.length;
+            bestHistory = entries.map((e) => ({
+              title: e.title,
+              artist: e.artist,
+              playedAt: e.playedAt,
+            }));
+          }
+          if (path === paths[0] && now) {
+            bestNow = now;
+          }
+        }
+
+        if (bestHistoryLen === 0) {
+          onLinkStatusRef.current?.("empty");
+          return;
+        }
+
+        onLinkStatusRef.current?.("ok");
+        onHistoryRef.current(bestHistory);
+
+        if (!bestNow) return;
+
+        const key = `${bestNow.playedAt ?? 0}:${bestNow.title}:${bestNow.artist}:${bestNow.bpm ?? ""}:${bestNow.key ?? ""}`;
         if (key === lastKeyRef.current) return;
         lastKeyRef.current = key;
 
         onNowPlayingRef.current({
-          title: latest.title,
-          artist: latest.artist,
-          bpm: latest.bpm,
-          key: latest.key,
-          playedAt: latest.playedAt,
+          title: bestNow.title,
+          artist: bestNow.artist,
+          bpm: bestNow.bpm,
+          key: bestNow.key,
+          playedAt: bestNow.playedAt,
         });
       } catch {
-        /* Tauri unavailable or Serato folder missing */
+        onLinkStatusRef.current?.("no_folder");
       }
     };
 
     void poll();
-    const id = setInterval(poll, 1500);
+    const id = setInterval(poll, 800);
     return () => {
       stopped = true;
       clearInterval(id);

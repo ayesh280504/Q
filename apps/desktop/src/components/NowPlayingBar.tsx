@@ -1,15 +1,18 @@
 import type { NowPlaying } from "../lib/trackMatch";
+import type { SeratoLinkStatus } from "../hooks/useSeratoPlayback";
 import TrackMeta from "./TrackMeta";
 
 interface NowPlayingBarProps {
   nowPlaying: NowPlaying | null;
   seratoActive: boolean;
+  seratoLinkStatus?: SeratoLinkStatus;
   djSoftware: "rekordbox" | "serato";
 }
 
 export default function NowPlayingBar({
   nowPlaying,
   seratoActive,
+  seratoLinkStatus,
   djSoftware,
 }: NowPlayingBarProps) {
   return (
@@ -23,11 +26,15 @@ export default function NowPlayingBar({
         </div>
       ) : (
         <p className="now-playing-empty muted">
-          {djSoftware === "serato" && seratoActive
-            ? "Start a track in Serato…"
-            : djSoftware === "serato"
-              ? "Serato auto-detect when gig is active"
-              : "Tap Playing on a queue track when you mix it"}
+          {djSoftware === "serato" && seratoActive && seratoLinkStatus === "no_folder"
+            ? "Can't find Serato History — play a track in Serato DJ Pro first"
+            : djSoftware === "serato" && seratoActive && seratoLinkStatus === "empty"
+              ? "Serato History is empty — start today's session in Serato"
+              : djSoftware === "serato" && seratoActive
+                ? "Play a track in Serato (updates in ~1s)…"
+                : djSoftware === "serato"
+                  ? "Serato auto-detect when gig is active"
+                  : "Tap Playing on a queue track when you mix it"}
         </p>
       )}
     </div>

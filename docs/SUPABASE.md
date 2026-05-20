@@ -13,8 +13,8 @@ In **Authentication → Providers**:
 
 | Provider | Action |
 |----------|--------|
-| **Email** | Enabled (confirm email on or off — if on, users must click the link before first sign-in) |
-| **Google** | Enable, add OAuth client ID/secret from [Google Cloud Console](https://console.cloud.google.com/) |
+| **Email** | Enabled — turn **Confirm email** ON for signup codes |
+| **Google** | Optional later — set `VITE_ENABLE_GOOGLE=true` in `.env` when ready |
 
 ### Google OAuth redirect URLs
 
@@ -45,6 +45,45 @@ VITE_Q_WEB_URL=http://localhost:5174
 ```
 
 Restart `npm run dev:stack` and the web app after changing env.
+
+**Important:** `.env` must live at the **repo root** (`Q/.env`). Vite loads it from there for `apps/web` and `apps/desktop`.
+
+### Register page checks
+
+On http://localhost:5174/register you should see **Continue with Google**. If you only see email/password and no Google button, Supabase env vars are not loaded — fix `.env` and restart `dev:stack`.
+
+### Email verification (6-digit code) — required for signup
+
+1. **Authentication → Providers → Email** → enable **Confirm email**.
+2. **Authentication → Email Templates → Confirm signup** — ensure the body includes the OTP token, e.g.:
+
+   ```text
+   Your Q verification code is: {{ .Token }}
+   ```
+
+   (Supabase sends a 6-digit `{{ .Token }}` when confirmations use OTP.)
+
+3. **Authentication → URL configuration** — add redirect URLs:
+   - `http://localhost:5174/auth/callback`
+   - `http://localhost:5174/reset-password`
+
+4. User flow: **Register** → `/verify-email` → enter code → Studio. User also appears under **Authentication → Users** after verification.
+
+### Forgot password
+
+1. **Authentication → Email Templates → Reset password** — include `{{ .Token }}` if you want code entry (same as signup).
+2. User flow: **Forgot password** → email → enter code on site **or** open link → **Reset password** page.
+
+### No email / user not in Supabase?
+
+| Cause | Fix |
+|-------|-----|
+| Confirm email OFF | Turn ON in Supabase |
+| `.env` not loaded | Restart `npm run dev:stack`; see **Continue with Google** hidden = OK |
+| Registered on **desktop** only | Use http://localhost:5174/register |
+| Registered before env fix | Sign up again on web with Supabase wired |
+
+Desktop **Register** still uses the local API unless you sign up on the **website** first.
 
 ## 4. How sign-in works
 

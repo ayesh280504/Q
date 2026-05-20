@@ -188,16 +188,24 @@ export function parseSeratoHistorySessionTracks(bytes: Uint8Array): SeratoNowPla
   return extractFromOent(tree).sort((a, b) => (a.playedAt ?? 0) - (b.playedAt ?? 0));
 }
 
-/** Last track from a Serato History session file (updates as you play). */
+/**
+ * Current / most recent track from a History .session file.
+ * Serato appends rows in play order — the last row is usually what's on deck now.
+ */
 export function parseSeratoHistorySession(bytes: Uint8Array): SeratoNowPlaying | null {
-  const entries = parseSeratoHistorySessionTracks(bytes);
+  const tree = decodeCrate(bytes);
+  const entries = extractFromOent(tree);
   if (entries.length === 0) return null;
 
-  return entries.reduce((latest, entry) => {
+  const lastInFile = entries[entries.length - 1]!;
+  const byTime = entries.reduce((latest, entry) => {
     const a = latest.playedAt ?? 0;
     const b = entry.playedAt ?? 0;
     return b >= a ? entry : latest;
   });
+
+  if ((byTime.playedAt ?? 0) > (lastInFile.playedAt ?? 0)) return byTime;
+  return lastInFile;
 }
 
 export function parseSeratoCrate(bytes: Uint8Array, sourcePath: string): SeratoParseResult {

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import QLogo from "../components/QLogo";
-import { fetchMe } from "../lib/accountApi";
+import { fetchMe, saveAccountToken, syncProfile } from "../lib/accountApi";
+import { clearPendingSignup, loadPendingSignup } from "../lib/authPending";
 import { supabase } from "../lib/supabase";
 
-/** OAuth return — session is read from URL hash/code by the Supabase client. */
+/** OAuth or email-confirmation link return. */
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -15,17 +16,33 @@ export default function AuthCallbackPage() {
       return;
     }
 
+    async function finish() {
+      const pending = loadPendingSignup();
+      try {
+        await fetchMe();
+        clearPendingSignup();
+        navigate("/studio", { replace: true });
+      } catch {
+        if (pending?.handle) {
+          const res = await syncProfile({
+            handle: pending.handle,
+            displayName: pending.displayName || pending.handle,
+          });
+          saveAccountToken(res.accountToken);
+          clearPendingSignup();
+          navigate("/studio?onboard=1", { replace: true });
+        } else {
+          navigate("/welcome", { replace: true });
+        }
+      }
+    }
+
     void supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         setError("Sign-in did not complete. Try again from the login page.");
         return;
       }
-      try {
-        await fetchMe();
-        navigate("/studio", { replace: true });
-      } catch {
-        navigate("/welcome", { replace: true });
-      }
+      await finish();
     });
   }, [navigate]);
 

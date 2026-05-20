@@ -20,7 +20,7 @@ import NowPlayingBar from "./components/NowPlayingBar";
 import QrSticker from "./components/QrSticker";
 import WelcomeTour from "./components/WelcomeTour";
 import TrackMeta from "./components/TrackMeta";
-import { useSeratoPlayback } from "./hooks/useSeratoPlayback";
+import { useSeratoPlayback, type SeratoLinkStatus } from "./hooks/useSeratoPlayback";
 import {
   fetchAccountMe,
   getAccountToken,
@@ -163,6 +163,7 @@ export default function App() {
   const [queue, setQueue] = useState<UpNextItem[]>([]);
   const [proHints, setProHints] = useState<TransitionSuggestion[]>([]);
   const [playedHistory, setPlayedHistory] = useState<PlayedTrack[]>([]);
+  const [seratoLinkStatus, setSeratoLinkStatus] = useState<SeratoLinkStatus>("idle");
   const [account, setAccount] = useState<DjProfile | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
@@ -261,6 +262,7 @@ export default function App() {
     enabled: seratoOn,
     onNowPlaying: setNowPlaying,
     onHistory: setPlayedHistory,
+    onLinkStatus: setSeratoLinkStatus,
   });
 
   useEffect(() => {
@@ -935,6 +937,7 @@ export default function App() {
             <NowPlayingBar
               nowPlaying={nowPlaying}
               seratoActive={Boolean(gig) && djSoftware === "serato"}
+              seratoLinkStatus={seratoLinkStatus}
               djSoftware={djSoftware}
             />
             <div className="pane-header">
