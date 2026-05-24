@@ -10,7 +10,8 @@ export default function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       navigate("/login", { replace: true });
       return;
     }
@@ -35,7 +36,7 @@ export default function AuthCallbackPage() {
       setError(result.message ?? "Could not save your username. Try again from the login page.");
     }
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: sub } = client.auth.onAuthStateChange((event, session) => {
       if (
         session &&
         (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")
@@ -44,11 +45,11 @@ export default function AuthCallbackPage() {
       }
     });
 
-    void supabase.auth.getSession().then(({ data: { session } }) => {
+    void client.auth.getSession().then(({ data: { session } }) => {
       if (session) void finish(session);
       else {
         window.setTimeout(() => {
-          void supabase.auth.getSession().then(({ data: { session: retry } }) => {
+          void client.auth.getSession().then(({ data: { session: retry } }) => {
             if (retry) void finish(retry);
             else if (!done) {
               setError(
