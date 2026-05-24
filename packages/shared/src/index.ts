@@ -10,20 +10,42 @@ export interface TrackRecord {
   durationSec?: number;
 }
 
+export type RequestSource = "library" | "spotify" | "manual";
+
 export interface CrowdRequest {
   id: string;
   sessionId: string;
   title: string;
   artist: string;
   message?: string;
-  /** @deprecated Use library search; kept for API compat */
+  /** Matched DJ's synced local library (Rekordbox/Serato) */
   inStock: boolean;
   matchedTrackId?: string;
+  source?: RequestSource;
+  externalId?: string;
   status: RequestStatus;
   createdAt: string;
   bpm?: number;
   key?: string;
+  albumArtUrl?: string;
   /** Song was already played earlier in this set (from Serato history sync). */
+  playedEarlierTonight?: boolean;
+}
+
+/** Unified crowd search result (Spotify + optional local library). */
+export interface TrackSearchHit {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string;
+  bpm?: number;
+  key?: string;
+  durationSec?: number;
+  albumArtUrl?: string;
+  source: RequestSource;
+  inStock: boolean;
+  spotifyId?: string;
+  libraryTrackId?: string;
   playedEarlierTonight?: boolean;
 }
 
@@ -33,6 +55,8 @@ export interface Session {
   name: string;
   createdAt: string;
   librarySyncedAt?: string;
+  /** Open Spotify search for crowd (when API keys configured). */
+  streamingSearch?: boolean;
   /** Shown in the center of the QR sticker (e.g. DJ name). */
   displayName?: string;
   /** Max pending requests in the DJ queue before crowd is paused. */
@@ -74,6 +98,15 @@ export interface CreateSessionResponse {
   crowdProfileUrl?: string;
 }
 
+/** Links shown on public DJ profile (Settings). */
+export interface DjSocialLinks {
+  instagram?: string;
+  twitter?: string;
+  soundcloud?: string;
+  tiktok?: string;
+  website?: string;
+}
+
 /** DJ account (community pillar). */
 export interface DjProfile {
   id: string;
@@ -81,6 +114,7 @@ export interface DjProfile {
   displayName: string;
   bio?: string;
   avatarUrl?: string;
+  socialLinks?: DjSocialLinks;
   verified: boolean;
   createdAt: string;
 }

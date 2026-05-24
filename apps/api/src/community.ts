@@ -11,7 +11,11 @@ import {
   syncSupabaseUser,
 } from "./auth.js";
 import { db } from "./db.js";
+import { ensureEngagementTables, mixEngagementStats } from "./engagement.js";
+import { parseSocialLinks, serializeSocialLinks } from "./social.js";
 import { verifySupabaseAccessToken } from "./supabase.js";
+
+ensureEngagementTables();
 
 const id = () => crypto.randomUUID();
 
@@ -70,6 +74,9 @@ community.post("/auth/login", async (c) => {
 community.get("/auth/me", async (c) => {
   const user = await resolveAccount(c);
   if (!user) return c.json({ error: "Unauthorized", needsProfile: true }, 401);
+  if (!normalizeHandle(user.handle)) {
+    return c.json({ error: "Profile incomplete", needsProfile: true }, 401);
+  }
   return c.json({ user: rowToProfile(user) });
 });
 
@@ -98,7 +105,7 @@ community.post("/auth/sync", async (c) => {
     supabaseId: claims.sub,
     email,
     handle: body.handle ?? existing?.handle ?? "",
-    displayName: body.displayName ?? body.handle ?? existing?.display_name ?? "",
+    displayName: body.handle ?? existing?.handle ?? "",
     avatarUrl: body.avatarUrl,
   });
   if ("error" in result) return c.json({ error: result.error }, 400);
@@ -110,17 +117,20 @@ community.patch("/auth/me", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
   const body = (await c.req.json()) as {
-    displayName?: string;
     bio?: string;
     avatarUrl?: string;
+    socialLinks?: import("@q/shared").DjSocialLinks;
   };
-  const displayName = body.displayName?.trim() || user.display_name;
-  const bio = body.bio?.trim() ?? user.bio;
-  const avatarUrl = body.avatarUrl?.trim() ?? user.avatar_url;
+  const bio = body.bio !== undefined ? body.bio.trim() || null : user.bio;
+  const avatarUrl = body.avatarUrl !== undefined ? body.avatarUrl.trim() || null : user.avatar_url;
+  const socialLinks =
+    body.socialLinks !== undefined
+      ? serializeSocialLinks(body.socialLinks)
+      : user.social_links;
 
   db.prepare(
-    `UPDATE users SET display_name = ?, bio = ?, avatar_url = ? WHERE id = ?`,
-  ).run(displayName, bio || null, avatarUrl || null, user.id);
+    `UPDATE users SET display_name = handle, bio = ?, avatar_url = ?, social_links = ? WHERE id = ?`,
+  ).run(bio, avatarUrl, socialLinks, user.id);
 
   const updated = db.prepare(`SELECT * FROM users WHERE id = ?`).get(user.id);
   return c.json({ user: rowToProfile(updated as Parameters<typeof rowToProfile>[0]) });
@@ -148,7 +158,32 @@ community.get("/djs/:handle", (c) => {
   return c.json({ profile });
 });
 
-community.get("/mixes/feed", (c) => {
+type FeedRow = MixRow & {
+  handle: string;
+  display_name: string;
+  verified: number;
+  avatar_url: string | null;
+};
+
+function mapFeedRow(r: FeedRow, viewerId?: string) {
+  const stats = mixEngagementStats(r.id, viewerId);
+  return {
+    ...rowToMix(r),
+    likeCount: stats.likeCount,
+    commentCount: stats.commentCount,
+    likedByMe: stats.likedByMe,
+    savedByMe: stats.savedByMe,
+    dj: {
+      handle: r.handle,
+      displayName: r.display_name,
+      verified: r.verified === 1,
+      avatarUrl: r.avatar_url ?? undefined,
+    },
+  };
+}
+
+community.get("/mixes/feed", async (c) => {
+  const viewer = await resolveAccount(c);
   const limit = Math.min(parseInt(c.req.query("limit") || "30", 10), 50);
   const rows = db
     .prepare(
@@ -159,26 +194,176 @@ community.get("/mixes/feed", (c) => {
        ORDER BY u.verified DESC, m.play_count DESC, m.created_at DESC
        LIMIT ?`,
     )
-    .all(limit) as Array<
-    MixRow & {
-      handle: string;
-      display_name: string;
-      verified: number;
-      avatar_url: string | null;
-    }
-  >;
+    .all(limit) as FeedRow[];
 
   return c.json({
-    mixes: rows.map((r) => ({
-      ...rowToMix(r),
-      dj: {
-        handle: r.handle,
-        displayName: r.display_name,
-        verified: r.verified === 1,
-        avatarUrl: r.avatar_url ?? undefined,
-      },
+    mixes: rows.map((r) => mapFeedRow(r, viewer?.id)),
+  });
+});
+
+community.get("/auth/feed/following", async (c) => {
+  const viewer = await resolveAccount(c);
+  if (!viewer) return c.json({ error: "Unauthorized" }, 401);
+  const limit = Math.min(parseInt(c.req.query("limit") || "30", 10), 50);
+  const rows = db
+    .prepare(
+      `SELECT m.*, u.handle, u.display_name, u.verified, u.avatar_url
+       FROM mixes m
+       JOIN users u ON u.id = m.user_id
+       JOIN follows f ON f.following_id = m.user_id AND f.follower_id = ?
+       WHERE m.is_public = 1
+       ORDER BY m.created_at DESC
+       LIMIT ?`,
+    )
+    .all(viewer.id, limit) as FeedRow[];
+
+  return c.json({ mixes: rows.map((r) => mapFeedRow(r, viewer.id)) });
+});
+
+community.post("/auth/mixes/:mixId/like", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const mixId = c.req.param("mixId");
+  const exists = db.prepare(`SELECT id FROM mixes WHERE id = ? AND is_public = 1`).get(mixId);
+  if (!exists) return c.json({ error: "Mix not found" }, 404);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT OR IGNORE INTO mix_likes (user_id, mix_id, created_at) VALUES (?, ?, ?)`,
+  ).run(user.id, mixId, now);
+  return c.json(mixEngagementStats(mixId, user.id));
+});
+
+community.delete("/auth/mixes/:mixId/like", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const mixId = c.req.param("mixId");
+  db.prepare(`DELETE FROM mix_likes WHERE user_id = ? AND mix_id = ?`).run(user.id, mixId);
+  return c.json(mixEngagementStats(mixId, user.id));
+});
+
+community.post("/auth/mixes/:mixId/save", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const mixId = c.req.param("mixId");
+  const exists = db.prepare(`SELECT id FROM mixes WHERE id = ? AND is_public = 1`).get(mixId);
+  if (!exists) return c.json({ error: "Mix not found" }, 404);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT OR IGNORE INTO saved_mixes (user_id, mix_id, created_at) VALUES (?, ?, ?)`,
+  ).run(user.id, mixId, now);
+  return c.json(mixEngagementStats(mixId, user.id));
+});
+
+community.delete("/auth/mixes/:mixId/save", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const mixId = c.req.param("mixId");
+  db.prepare(`DELETE FROM saved_mixes WHERE user_id = ? AND mix_id = ?`).run(user.id, mixId);
+  return c.json(mixEngagementStats(mixId, user.id));
+});
+
+community.get("/auth/mixes/:mixId/comments", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const mixId = c.req.param("mixId");
+  const rows = db
+    .prepare(
+      `SELECT c.id, c.body, c.created_at, u.handle, u.display_name
+       FROM mix_comments c
+       JOIN users u ON u.id = c.user_id
+       WHERE c.mix_id = ?
+       ORDER BY c.created_at ASC
+       LIMIT 100`,
+    )
+    .all(mixId) as Array<{
+    id: string;
+    body: string;
+    created_at: string;
+    handle: string;
+    display_name: string;
+  }>;
+
+  return c.json({
+    comments: rows.map((r) => ({
+      id: r.id,
+      body: r.body,
+      createdAt: r.created_at,
+      author: { handle: r.handle, displayName: r.display_name },
     })),
   });
+});
+
+community.post("/auth/mixes/:mixId/comments", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const mixId = c.req.param("mixId");
+  const body = (await c.req.json()) as { body?: string };
+  const text = body.body?.trim();
+  if (!text) return c.json({ error: "Comment required" }, 400);
+  const exists = db.prepare(`SELECT id FROM mixes WHERE id = ? AND is_public = 1`).get(mixId);
+  if (!exists) return c.json({ error: "Mix not found" }, 404);
+  const commentId = id();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO mix_comments (id, user_id, mix_id, body, created_at) VALUES (?, ?, ?, ?, ?)`,
+  ).run(commentId, user.id, mixId, text, now);
+  return c.json({
+    comment: {
+      id: commentId,
+      body: text,
+      createdAt: now,
+      author: { handle: user.handle, displayName: user.display_name },
+    },
+    ...mixEngagementStats(mixId, user.id),
+  });
+});
+
+community.post("/auth/follow/:handle", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const handle = normalizeHandle(c.req.param("handle"));
+  if (!handle) return c.json({ error: "DJ not found" }, 404);
+  const target = db.prepare(`SELECT id FROM users WHERE handle = ?`).get(handle) as
+    | { id: string }
+    | undefined;
+  if (!target) return c.json({ error: "DJ not found" }, 404);
+  if (target.id === user.id) return c.json({ error: "Cannot follow yourself" }, 400);
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT OR IGNORE INTO follows (follower_id, following_id, created_at) VALUES (?, ?, ?)`,
+  ).run(user.id, target.id, now);
+  return c.json({ ok: true, following: true });
+});
+
+community.delete("/auth/follow/:handle", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const handle = normalizeHandle(c.req.param("handle"));
+  if (!handle) return c.json({ error: "DJ not found" }, 404);
+  const target = db.prepare(`SELECT id FROM users WHERE handle = ?`).get(handle) as
+    | { id: string }
+    | undefined;
+  if (!target) return c.json({ error: "DJ not found" }, 404);
+  db.prepare(`DELETE FROM follows WHERE follower_id = ? AND following_id = ?`).run(
+    user.id,
+    target.id,
+  );
+  return c.json({ ok: true, following: false });
+});
+
+community.get("/auth/follow/:handle", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const handle = normalizeHandle(c.req.param("handle"));
+  if (!handle) return c.json({ error: "DJ not found" }, 404);
+  const target = db.prepare(`SELECT id FROM users WHERE handle = ?`).get(handle) as
+    | { id: string }
+    | undefined;
+  if (!target) return c.json({ error: "DJ not found" }, 404);
+  const row = db
+    .prepare(`SELECT 1 FROM follows WHERE follower_id = ? AND following_id = ?`)
+    .get(user.id, target.id);
+  return c.json({ following: Boolean(row) });
 });
 
 community.get("/auth/mixes", async (c) => {

@@ -13,7 +13,7 @@ In **Authentication → Providers**:
 
 | Provider | Action |
 |----------|--------|
-| **Email** | Enabled — turn **Confirm email** ON for signup codes |
+| **Email** | Enabled — turn **Confirm email** ON (users verify via link in email) |
 | **Google** | Optional later — set `VITE_ENABLE_GOOGLE=true` in `.env` when ready |
 
 ### Google OAuth redirect URLs
@@ -52,27 +52,20 @@ Restart `npm run dev:stack` and the web app after changing env.
 
 On http://localhost:5174/register you should see **Continue with Google**. If you only see email/password and no Google button, Supabase env vars are not loaded — fix `.env` and restart `dev:stack`.
 
-### Email verification (6-digit code) — required for signup
+### Email verification (link) — required for signup
 
 1. **Authentication → Providers → Email** → enable **Confirm email**.
-2. **Authentication → Email Templates → Confirm signup** — ensure the body includes the OTP token, e.g.:
-
-   ```text
-   Your Q verification code is: {{ .Token }}
-   ```
-
-   (Supabase sends a 6-digit `{{ .Token }}` when confirmations use OTP.)
-
+2. **Authentication → Email Templates → Confirm signup** — use Supabase’s default **confirmation link** (`{{ .ConfirmationURL }}`). Q does not ask for a 6-digit code on the site.
 3. **Authentication → URL configuration** — add redirect URLs:
    - `http://localhost:5174/auth/callback`
    - `http://localhost:5174/reset-password`
-
-4. User flow: **Register** → `/verify-email` → enter code → Studio. User also appears under **Authentication → Users** after verification.
+4. User flow: **Register** → `/verify-email` (“check your inbox”) → user clicks link → `/auth/callback` → Studio.
+5. **Username** is stored in the **Q API** (`users.handle`), not as a top-level Supabase column. At signup it is saved in `user_metadata.handle` and synced on first link sign-in. In Supabase dashboard: **Authentication → Users →** your user → **Raw User Meta Data**.
 
 ### Forgot password
 
-1. **Authentication → Email Templates → Reset password** — include `{{ .Token }}` if you want code entry (same as signup).
-2. User flow: **Forgot password** → email → enter code on site **or** open link → **Reset password** page.
+1. **Authentication → Email Templates → Reset password** — link flow (`{{ .ConfirmationURL }}` / reset link).
+2. User flow: **Forgot password** → email with link → **Reset password** page.
 
 ### No email / user not in Supabase?
 
@@ -84,6 +77,10 @@ On http://localhost:5174/register you should see **Continue with Google**. If yo
 | Registered before env fix | Sign up again on web with Supabase wired |
 
 Desktop **Register** still uses the local API unless you sign up on the **website** first.
+
+## 5. Launch booth app from the website
+
+The web app uses the **`qdj://open`** link (same as **Open booth app** in the nav). It works after the desktop app is installed and registers the URL scheme (production installer / `tauri build`). In dev, open Q from the terminal or Start menu; the link may not resolve until a bundled install exists.
 
 ## 4. How sign-in works
 

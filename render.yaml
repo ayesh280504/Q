@@ -1,0 +1,21 @@
+# Render Blueprint — API only (skip desktop/Tauri workspaces on Linux)
+# Dashboard → New → Blueprint, or connect repo and Render picks this up.
+services:
+  - type: web
+    name: q-api
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev -w @q/shared -w @q/api && npm run build -w @q/shared && npm run build -w @q/api
+    startCommand: npm run start -w @q/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: Q_DATA_DIR
+        value: ./data
+      - key: Q_CROWD_URL
+        value: https://placeholder.vercel.app
+      - key: Q_WEB_URL
+        value: https://placeholder.vercel.app
+      - key: SUPABASE_URL
+        sync: false

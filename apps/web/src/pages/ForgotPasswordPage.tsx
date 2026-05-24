@@ -1,23 +1,19 @@
 import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import CommunityNav from "../components/CommunityNav";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import "../community.css";
 
 export default function ForgotPasswordPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"request" | "code">("request");
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onSendEmail(e: FormEvent) {
     e.preventDefault();
     if (!supabase) return;
     setError(null);
-    setInfo(null);
     setBusy(true);
     try {
       const redirectTo = `${window.location.origin}/reset-password`;
@@ -25,37 +21,9 @@ export default function ForgotPasswordPage() {
         redirectTo,
       });
       if (resetError) throw resetError;
-      setInfo(
-        "If that email exists, we sent a reset email with a 6-digit code (and a link). Enter the code below.",
-      );
-      setStep("code");
+      setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send reset email");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onVerifyCode(e: FormEvent) {
-    e.preventDefault();
-    if (!supabase) return;
-    const token = code.replace(/\D/g, "").trim();
-    if (token.length < 6) {
-      setError("Enter the 6-digit code from your email.");
-      return;
-    }
-    setError(null);
-    setBusy(true);
-    try {
-      const { error: otpError } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token,
-        type: "recovery",
-      });
-      if (otpError) throw otpError;
-      navigate("/reset-password", { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid or expired code");
     } finally {
       setBusy(false);
     }
@@ -79,9 +47,27 @@ export default function ForgotPasswordPage() {
       <main className="community-main auth-form-wrap">
         <h1>Reset password</h1>
 
-        {step === "request" && (
+        {sent ? (
           <>
-            <p className="muted">We&apos;ll email you a code and a reset link.</p>
+            <p className="muted">
+              If <strong>{email}</strong> has an account, we sent a reset link. Open it on this
+              device to choose a new password.
+            </p>
+            <p className="muted small">
+              Didn&apos;t get it? Check spam, or try again in a minute.
+            </p>
+            <button
+              type="button"
+              className="btn ghost"
+              style={{ marginTop: "1rem" }}
+              onClick={() => setSent(false)}
+            >
+              Use a different email
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="muted">We&apos;ll email you a link to reset your password.</p>
             <form className="auth-form" onSubmit={onSendEmail}>
               <label>
                 Email
@@ -94,36 +80,9 @@ export default function ForgotPasswordPage() {
               </label>
               {error && <p className="error">{error}</p>}
               <button type="submit" className="btn primary" disabled={busy}>
-                {busy ? "…" : "Send reset email"}
+                {busy ? "…" : "Send reset link"}
               </button>
             </form>
-          </>
-        )}
-
-        {step === "code" && (
-          <>
-            <p className="muted">{info}</p>
-            <form className="auth-form" onSubmit={onVerifyCode}>
-              <label>
-                Reset code
-                <input
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder="123456"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  maxLength={8}
-                  required
-                />
-              </label>
-              {error && <p className="error">{error}</p>}
-              <button type="submit" className="btn primary" disabled={busy}>
-                {busy ? "…" : "Verify code"}
-              </button>
-            </form>
-            <p className="muted small">
-              Or open the link in the same email — it will take you straight to set a new password.
-            </p>
           </>
         )}
 

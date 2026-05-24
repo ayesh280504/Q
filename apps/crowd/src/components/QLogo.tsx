@@ -4,7 +4,7 @@ interface QLogoProps {
   alt?: string;
 }
 
-export default function QLogo({ size = 40, className = "", alt = "Q" }: QLogoProps) {
+export default function QLogo({ size = 36, className = "", alt = "Q" }: QLogoProps) {
   return (
     <img
       src="/q-logo.png"
@@ -12,6 +12,12 @@ export default function QLogo({ size = 40, className = "", alt = "Q" }: QLogoPro
       height={size}
       alt={alt}
       className={`q-logo ${className}`.trim()}
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        maxWidth: `${size}px`,
+        maxHeight: `${size}px`,
+      }}
       draggable={false}
     />
   );

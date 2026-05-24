@@ -2,24 +2,14 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import QLogo from "../components/QLogo";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
-import type { Session } from "@q/shared";
-
-interface SearchHit {
-  id: string;
-  title: string;
-  artist: string;
-  bpm?: number;
-  key?: string;
-  inStock: boolean;
-  playedEarlierTonight?: boolean;
-}
+import type { Session, TrackSearchHit } from "@q/shared";
 
 export default function RequestPage() {
   const { code: rawCode } = useParams<{ code: string }>();
   const code = rawCode?.trim().toUpperCase();
   const [session, setSession] = useState<Session | null>(null);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchHit[]>([]);
+  const [results, setResults] = useState<TrackSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -38,37 +28,39 @@ export default function RequestPage() {
           );
         } else if (msg === "Session not found") {
           setError(
-            `No gig found for code “${code}”. Copy the URL from the DJ app after Start gig (codes are case-sensitive).`,
+            `No gig found for code “${code}”. Copy the URL from the DJ app after Start gig.`,
           );
         } else {
-          setError(msg || "Could not load this session. Start a new gig on the DJ app.");
+          setError(msg || "Could not load this session.");
         }
       });
   }, [code]);
 
-  const search = useCallback(async (q: string) => {
-    if (!code || q.length < 2) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await api<{ results: SearchHit[] }>(
-        `/sessions/${code}/library/search?q=${encodeURIComponent(q)}`,
-      );
-      setResults(data.results);
-    } catch (e) {
-      setResults([]);
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-        setError(
-          "Cannot reach the Q server. Check that npm run dev:stack is running on the DJ laptop.",
-        );
+  const search = useCallback(
+    async (q: string) => {
+      if (!code || q.length < 2) {
+        setResults([]);
+        return;
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [code]);
+      setLoading(true);
+      try {
+        const data = await api<{
+          results: TrackSearchHit[];
+          mode: "spotify" | "library" | "none";
+        }>(`/sessions/${code}/tracks/search?q=${encodeURIComponent(q)}`);
+        setResults(data.results);
+      } catch (e) {
+        setResults([]);
+        const msg = e instanceof Error ? e.message : "";
+        if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+          setError("Cannot reach the Q server. Check npm run dev:stack on the DJ laptop.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [code],
+  );
 
   useEffect(() => {
     const t = setTimeout(() => search(query), 300);
@@ -79,6 +71,10 @@ export default function RequestPage() {
     title: string;
     artist: string;
     trackId?: string;
+    spotifyId?: string;
+    bpm?: number;
+    key?: string;
+    albumArtUrl?: string;
   }) {
     if (!code) return;
     setError(null);
@@ -89,7 +85,7 @@ export default function RequestPage() {
       });
       setSent(
         res.message ??
-          `Request sent for “${payload.title}”. The DJ will see it when they sync.`,
+          `Request sent for “${payload.title}”. The DJ will see it on their screen — no need to yell over the music.`,
       );
       setQuery("");
       setResults([]);
@@ -111,6 +107,8 @@ export default function RequestPage() {
 
   if (!code) return null;
 
+  const streaming = session?.streamingSearch ?? false;
+
   return (
     <div className="app">
       <QLogo size={48} className="brand-mark" />
@@ -121,50 +119,73 @@ export default function RequestPage() {
             ? `Request a track — ${session.displayName ?? session.name}`
             : "Loading…"}
       </p>
-      {session && (
-        <p className="sub limits-hint">
-          Up to {session.maxRequestsPerGuest ?? 3} requests per person this set.
+      {session && !error && (
+        <p className="sub hero-hint">
+          No need to shout at the booth — your request shows on the DJ&apos;s screen.
         </p>
       )}
-      {session && !session.librarySyncedAt && (
-        <p className="sub library-hint">
-          The DJ hasn&apos;t synced their library yet — search may be empty. You can still request
-          any track below.
+      {session && (
+        <p className="sub limits-hint">
+          Up to {session.maxRequestsPerGuest ?? 3} requests per person ·{" "}
+          {streaming
+            ? "Search any song — BPM & key go to the DJ automatically"
+            : "Search the DJ's synced library"}
         </p>
       )}
 
       <input
         className="search"
-        placeholder="Search title or artist…"
+        placeholder={
+          streaming ? "Search any song (Spotify)…" : "Search title or artist in DJ library…"
+        }
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         autoComplete="off"
       />
 
       {loading && !error && <p className="sub">Searching…</p>}
-      {session && !loading && query.length >= 2 && results.length === 0 && (
-        <p className="sub">No matches — try another spelling or use “Request anyway” below.</p>
+      {!loading && query.length >= 2 && results.length === 0 && (
+        <p className="sub">No matches — try different words or request manually below.</p>
       )}
 
       <ul className="results">
         {results.map((t) => (
           <li key={t.id} className="track">
-            <div>
+            {t.albumArtUrl && (
+              <img src={t.albumArtUrl} alt="" className="track-art" width={48} height={48} />
+            )}
+            <div className="track-body">
               <h3>{t.title}</h3>
-              <p>{t.artist}{t.bpm ? ` · ${t.bpm} BPM` : ""}</p>
+              <p>
+                {t.artist}
+                {t.bpm ? ` · ${t.bpm} BPM` : ""}
+                {t.key ? ` · ${t.key}` : ""}
+              </p>
+              <div className="track-badges">
+                {t.source === "spotify" && <span className="badge source-spotify">Spotify</span>}
+                {t.inStock && <span className="badge source-library">In DJ crate</span>}
+                {t.playedEarlierTonight && (
+                  <span className="badge played-earlier">Played tonight</span>
+                )}
+              </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-              {t.playedEarlierTonight && (
-                <span className="badge played-earlier">Played once already</span>
-              )}
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => submitRequest({ title: t.title, artist: t.artist, trackId: t.id })}
-              >
-                Request
-              </button>
-            </div>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() =>
+                submitRequest({
+                  title: t.title,
+                  artist: t.artist,
+                  trackId: t.libraryTrackId,
+                  spotifyId: t.spotifyId,
+                  bpm: t.bpm,
+                  key: t.key,
+                  albumArtUrl: t.albumArtUrl,
+                })
+              }
+            >
+              Request
+            </button>
           </li>
         ))}
       </ul>
@@ -172,7 +193,7 @@ export default function RequestPage() {
       <section className="manual">
         <h2 style={{ fontSize: "1rem", margin: "0 0 0.5rem" }}>Don&apos;t see it?</h2>
         <p className="sub" style={{ marginTop: 0 }}>
-          Type any title — the DJ will see it even if it&apos;s not in their library search.
+          Type any track — the DJ still gets your request even if search misses it.
         </p>
         <form onSubmit={onManual}>
           <input

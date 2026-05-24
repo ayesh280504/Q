@@ -2,6 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Context } from "hono";
 import { db } from "./db.js";
 import type { DjProfile } from "@q/shared";
+import { parseSocialLinks } from "./social.js";
 import { verifySupabaseAccessToken } from "./supabase.js";
 
 const id = () => crypto.randomUUID();
@@ -43,6 +44,7 @@ export type UserRow = {
   account_token: string;
   created_at: string;
   supabase_id: string | null;
+  social_links: string | null;
 };
 
 export function rowToProfile(row: UserRow): DjProfile {
@@ -52,6 +54,7 @@ export function rowToProfile(row: UserRow): DjProfile {
     displayName: row.display_name,
     bio: row.bio ?? undefined,
     avatarUrl: row.avatar_url ?? undefined,
+    socialLinks: parseSocialLinks(row.social_links),
     verified: row.verified === 1,
     createdAt: row.created_at,
   };
@@ -78,7 +81,21 @@ export async function resolveAccount(c: Context): Promise<UserRow | null> {
   const bearer = c.req.header("Authorization");
   if (bearer?.startsWith("Bearer ")) {
     const claims = await verifySupabaseAccessToken(bearer.slice(7).trim());
-    if (claims) return getUserBySupabaseId(claims.sub);
+    if (claims) {
+      const bySupabase = getUserBySupabaseId(claims.sub);
+      if (bySupabase) return bySupabase;
+
+      const email = claims.email?.trim().toLowerCase();
+      if (email) {
+        const byEmail = db
+          .prepare(`SELECT * FROM users WHERE email = ?`)
+          .get(email) as UserRow | undefined;
+        if (byEmail) {
+          db.prepare(`UPDATE users SET supabase_id = ? WHERE id = ?`).run(claims.sub, byEmail.id);
+          return db.prepare(`SELECT * FROM users WHERE id = ?`).get(byEmail.id) as UserRow;
+        }
+      }
+    }
   }
   return getUserByToken(c.req.header("X-Q-Account-Token"));
 }
@@ -100,7 +117,7 @@ export function registerUser(input: {
   if (input.password.length < 8) return { error: "Password must be at least 8 characters" };
   if (!handle) return { error: "Handle must be 3–24 chars: letters, numbers, underscore" };
 
-  const displayName = input.displayName.trim() || handle;
+  const displayName = handle;
   const existing = db
     .prepare(`SELECT id FROM users WHERE email = ? OR handle = ?`)
     .get(email, handle) as { id: string } | undefined;
@@ -147,13 +164,24 @@ export function syncSupabaseUser(input: {
   if (!email.includes("@")) return { error: "Valid email required" };
   if (!handle) return { error: "Handle must be 3–24 chars: letters, numbers, underscore" };
 
-  const displayName = input.displayName.trim() || handle;
+  const displayName = handle;
   const bySupabase = getUserBySupabaseId(input.supabaseId);
   if (bySupabase) {
     const token = accountToken();
-    db.prepare(
-      `UPDATE users SET display_name = ?, avatar_url = COALESCE(?, avatar_url), account_token = ? WHERE id = ?`,
-    ).run(displayName, input.avatarUrl ?? null, token, bySupabase.id);
+    const currentValid = normalizeHandle(bySupabase.handle);
+    if (handle && !currentValid) {
+      const taken = db
+        .prepare(`SELECT id FROM users WHERE handle = ? AND id != ?`)
+        .get(handle, bySupabase.id) as { id: string } | undefined;
+      if (taken) return { error: "Handle already taken" };
+      db.prepare(
+        `UPDATE users SET handle = ?, display_name = ?, avatar_url = COALESCE(?, avatar_url), account_token = ? WHERE id = ?`,
+      ).run(handle, displayName, input.avatarUrl ?? null, token, bySupabase.id);
+    } else {
+      db.prepare(
+        `UPDATE users SET display_name = ?, avatar_url = COALESCE(?, avatar_url), account_token = ? WHERE id = ?`,
+      ).run(currentValid ? bySupabase.display_name : displayName, input.avatarUrl ?? null, token, bySupabase.id);
+    }
     const updated = db.prepare(`SELECT * FROM users WHERE id = ?`).get(bySupabase.id) as UserRow;
     return { user: rowToProfile(updated), accountToken: token };
   }

@@ -4,7 +4,7 @@ import CommunityNav from "../components/CommunityNav";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import "../community.css";
 
-/** Set a new password after recovery link or recovery OTP. */
+/** Set a new password after opening the reset link from email. */
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
@@ -69,8 +69,8 @@ export default function ResetPasswordPage() {
         <h1>Choose a new password</h1>
         {!ready ? (
           <p className="muted">
-            Open the reset link from your email, or enter your code on{" "}
-            <Link to="/forgot-password">forgot password</Link> first.
+            Open the reset link from your email. Request a new one from{" "}
+            <Link to="/forgot-password">forgot password</Link> if it expired.
           </p>
         ) : (
           <form className="auth-form" onSubmit={onSubmit}>

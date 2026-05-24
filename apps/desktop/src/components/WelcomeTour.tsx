@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "q-desktop-tour-v1";
+const STORAGE_KEY = "q-desktop-tour-v2";
 
 const STEPS = [
   {
@@ -16,8 +16,12 @@ const STEPS = [
     body: "Auto-import Rekordbox or Serato, then tap Sync now so the crowd can search your library.",
   },
   {
-    title: "Queue & requests",
-    body: "Accept requests into your queue. Serato auto-detects now playing; on Rekordbox tap Playing when you mix a track.",
+    title: "Silent requests",
+    body: "Crowd requests land here as Accept / Decline — no yelling, no pulling off your headphones mid-transition. Glance at the screen and keep mixing.",
+  },
+  {
+    title: "Queue & mix",
+    body: "Accepted tracks go to your queue. Serato auto-detects now playing; on Rekordbox tap Playing when you mix a track.",
   },
   {
     title: "Offline booth",

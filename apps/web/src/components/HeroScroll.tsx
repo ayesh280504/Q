@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 
 type Props = {
   progress: number;
@@ -25,9 +26,9 @@ export default function HeroScroll({ progress }: Props) {
           Your queue. Your rules. Your library — scroll to watch the deck come alive.
         </p>
         <div className="hero-actions">
-          <a className="btn primary hero-cta" href="#download">
+          <Link to="/download" className="btn primary hero-cta">
             Download Q
-          </a>
+          </Link>
           <a className="btn ghost hero-cta" href="#how">
             How it works
           </a>

@@ -33,12 +33,30 @@ input {
 .q-logo {
   display: block;
   object-fit: contain;
-  filter: drop-shadow(0 0 12px rgba(124, 58, 237, 0.5));
+  flex-shrink: 0;
+  filter: brightness(1.05) drop-shadow(-1px 0 3px rgba(192, 132, 252, 0.45))
+    drop-shadow(2px -1px 4px rgba(56, 189, 248, 0.35)) drop-shadow(1px 2px 3px rgba(147, 51, 234, 0.25));
+}
+
+.brand-mark .q-logo {
+  filter: brightness(1.06) drop-shadow(-2px 0 4px rgba(216, 180, 254, 0.5))
+    drop-shadow(2px -2px 5px rgba(56, 189, 248, 0.4)) drop-shadow(2px 2px 4px rgba(147, 51, 234, 0.3));
 }
 
 .sub {
   color: #9ca3af;
   margin: 0 0 1.5rem;
+}
+
+.hero-hint {
+  margin-top: -0.75rem;
+  margin-bottom: 0.5rem;
+  color: #c4b5fd;
+  font-size: 0.9rem;
+}
+
+.limits-hint {
+  margin-top: 0;
 }
 
 .search {
@@ -59,9 +77,44 @@ input {
 .track {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
   padding: 0.85rem 0;
   border-bottom: 1px solid #1e1e28;
+}
+
+.track-art {
+  border-radius: 8px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.track-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.track-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.badge.source-spotify {
+  background: rgba(30, 215, 96, 0.15);
+  color: #4ade80;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.badge.source-library {
+  background: rgba(124, 58, 237, 0.2);
+  color: #c4b5fd;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
 }
 
 .track h3 {

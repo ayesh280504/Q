@@ -1,17 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CommunityNav from "../components/CommunityNav";
+import { hasCompletedWebOnboarding } from "../components/WebOnboardingTour";
 import { useAuth } from "../context/AuthContext";
-import { saveAccountToken, syncProfile } from "../lib/accountApi";
+import { fetchMe, saveAccountToken, syncProfile } from "../lib/accountApi";
 import { supabase } from "../lib/supabase";
 import "../community.css";
 
-/** First-time Supabase sign-in: pick a public handle before using studio. */
+/** First-time Supabase sign-in: pick a public username before using studio. */
 export default function CompleteProfilePage() {
   const navigate = useNavigate();
-  const { supabaseSession, refreshProfile } = useAuth();
-  const [handle, setHandle] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const { supabaseSession, profileLoading, profile, refreshProfile } = useAuth();
+  const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -20,15 +20,17 @@ export default function CompleteProfilePage() {
       navigate("/login", { replace: true });
       return;
     }
-    const meta = supabaseSession.user.user_metadata as {
-      full_name?: string;
-      name?: string;
-      avatar_url?: string;
-    };
-    const name =
-      meta.full_name || meta.name || supabaseSession.user.email?.split("@")[0] || "";
-    if (name && !displayName) setDisplayName(name);
-  }, [supabaseSession, navigate, displayName]);
+    if (profileLoading) return;
+    if (profile?.handle) {
+      navigate("/studio", { replace: true });
+      return;
+    }
+    if (username) return;
+    const suggested =
+      supabaseSession.user.email?.split("@")[0]?.toLowerCase().replace(/[^a-z0-9_]/g, "") ??
+      "";
+    if (suggested.length >= 3) setUsername(suggested.slice(0, 24));
+  }, [supabaseSession, profileLoading, profile, navigate, username]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -38,18 +40,22 @@ export default function CompleteProfilePage() {
     try {
       const meta = supabaseSession?.user.user_metadata as { avatar_url?: string };
       const res = await syncProfile({
-        handle,
-        displayName: displayName || handle,
+        handle: username.trim(),
         avatarUrl: meta?.avatar_url,
       });
       saveAccountToken(res.accountToken);
       await refreshProfile();
-      navigate("/studio?onboard=1", { replace: true });
+      const tour = !hasCompletedWebOnboarding();
+      navigate(tour ? "/studio?onboard=1" : "/studio", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create profile");
     } finally {
       setBusy(false);
     }
+  }
+
+  if (profileLoading) {
+    return <p className="muted community-page">Loading…</p>;
   }
 
   return (
@@ -58,26 +64,19 @@ export default function CompleteProfilePage() {
       <main className="community-main auth-form-wrap">
         <h1>Finish your profile</h1>
         <p className="muted">
-          Choose a handle for your public page and permanent booth QR (
-          <code>/dj/your-handle</code>).
+          Choose a username for your public page and permanent booth QR (
+          <code>/dj/your-username</code>). This is how others find and @mention you.
         </p>
         <form className="auth-form" onSubmit={onSubmit}>
           <label>
-            Handle (e.g. dj_ayesh)
+            Username (e.g. dj_ayesh)
             <input
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
               required
               pattern="[a-z][a-z0-9_]{2,23}"
               title="3–24 chars, lowercase letters, numbers, underscore"
-            />
-          </label>
-          <label>
-            Display name
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="DJ Ayesh"
+              autoComplete="username"
             />
           </label>
           {error && <p className="error">{error}</p>}

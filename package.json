@@ -21,7 +21,7 @@
     "build:desktop": "npm run build -w @q/desktop"
   },
   "engines": {
-    "node": ">=18"
+    "node": "20.x"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

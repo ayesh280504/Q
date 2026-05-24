@@ -28,8 +28,8 @@
   font-size: 0.9rem;
 }
 
-.community-nav .q-logo {
-  filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.45));
+.community-nav .site-nav-logo {
+  filter: var(--q-logo-glow-strong);
 }
 
 .community-nav a:hover {
@@ -275,4 +275,137 @@
   color: #f4f4f5;
   font: inherit;
   resize: vertical;
+}
+
+.feed-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.feed-tab {
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  border: 1px solid #2a2a3a;
+  background: transparent;
+  color: #9ca3af;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feed-tab.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+.feed-hint {
+  margin-top: 0.75rem;
+}
+
+.mix-engagement {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.mix-engagement-btn {
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #2a2a3a;
+  background: #0f0f14;
+  color: #d4d4d8;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.mix-engagement-btn:hover {
+  border-color: #4b5563;
+}
+
+.mix-engagement-btn.active {
+  border-color: #7c3aed;
+  color: #c4b5fd;
+}
+
+.auth-gate-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.auth-gate-card,
+.comments-modal {
+  max-width: 420px;
+  width: 100%;
+  background: #12121a;
+  border: 1px solid #2a2a3a;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.auth-gate-card h2,
+.comments-modal h2 {
+  margin: 0 0 0.5rem;
+}
+
+.auth-gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.auth-gate-actions .btn {
+  flex: 1 1 auto;
+  text-align: center;
+  text-decoration: none;
+}
+
+.comments-list {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.comments-list li {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #1f1f2e;
+}
+
+.comments-list p {
+  margin: 0.25rem 0 0;
+  color: #d4d4d8;
+}
+
+.comments-modal textarea {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #2a2a3a;
+  background: #0f0f14;
+  color: #fff;
+  font: inherit;
+  resize: vertical;
+}
+
+.comments-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.follow-btn {
+  margin-top: 1rem;
 }

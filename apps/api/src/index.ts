@@ -33,14 +33,21 @@ function loadRootEnv(): void {
 loadRootEnv();
 import { buildProSuggestions } from "./ai-suggestions.js";
 import { buildSuggestions } from "./suggestions.js";
+import {
+  getSpotifyTrackFeatures,
+  isSpotifyConfigured,
+  searchSpotifyTracks,
+} from "./spotify.js";
 import type {
   CreateSessionResponse,
   CrowdRequest,
   PlanTier,
+  RequestSource,
   Session,
   SessionSettings,
   SyncStatus,
   TrackRecord,
+  TrackSearchHit,
   TransitionSuggestion,
 } from "@q/shared";
 
@@ -78,10 +85,32 @@ type SessionRow = {
   display_name?: string | null;
   max_pending_requests?: number | null;
   max_requests_per_guest?: number | null;
+  streaming_search?: number | null;
+};
+
+type RequestRow = {
+  id: string;
+  session_id: string;
+  title: string;
+  artist: string;
+  message: string | null;
+  in_stock: number;
+  matched_track_id: string | null;
+  status: string;
+  created_at: string;
+  source?: string | null;
+  external_id?: string | null;
+  bpm?: number | null;
+  key?: string | null;
+  album_art_url?: string | null;
 };
 
 function clampLimit(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function sessionUsesStreamingSearch(row: SessionRow): boolean {
+  return isSpotifyConfigured() && (row.streaming_search ?? 1) !== 0;
 }
 
 function rowToSession(row: SessionRow): Session {
@@ -94,22 +123,13 @@ function rowToSession(row: SessionRow): Session {
     displayName: row.display_name?.trim() || row.name,
     maxPendingRequests: row.max_pending_requests ?? 20,
     maxRequestsPerGuest: row.max_requests_per_guest ?? 3,
+    streamingSearch: sessionUsesStreamingSearch(row),
   };
 }
 
-function rowToRequest(row: {
-  id: string;
-  session_id: string;
-  title: string;
-  artist: string;
-  message: string | null;
-  in_stock: number;
-  matched_track_id: string | null;
-  status: string;
-  created_at: string;
-}): CrowdRequest {
+function rowToRequest(row: RequestRow): CrowdRequest {
   const sessionId = row.session_id;
-  const meta = trackMetaForRequest(sessionId, row.matched_track_id);
+  const libraryMeta = trackMetaForRequest(sessionId, row.matched_track_id);
   return {
     id: row.id,
     sessionId,
@@ -118,10 +138,13 @@ function rowToRequest(row: {
     message: row.message ?? undefined,
     inStock: row.in_stock === 1,
     matchedTrackId: row.matched_track_id ?? undefined,
+    source: (row.source as RequestSource) ?? undefined,
+    externalId: row.external_id ?? undefined,
     status: row.status as CrowdRequest["status"],
     createdAt: row.created_at,
-    bpm: meta.bpm,
-    key: meta.key,
+    bpm: row.bpm ?? libraryMeta.bpm ?? undefined,
+    key: row.key ?? libraryMeta.key ?? undefined,
+    albumArtUrl: row.album_art_url ?? undefined,
     playedEarlierTonight: isPlayedEarlierTonight(sessionId, row.title, row.artist),
   };
 }
@@ -188,7 +211,9 @@ function requireDj(c: { req: { header: (n: string) => string | undefined } }, se
   return row?.id ?? null;
 }
 
-app.get("/health", (c) => c.json({ ok: true, service: "q-api" }));
+app.get("/health", (c) =>
+  c.json({ ok: true, service: "q-api", spotifySearch: isSpotifyConfigured() }),
+);
 
 app.post("/sessions", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
@@ -236,6 +261,7 @@ app.post("/sessions", async (c) => {
       displayName,
       maxPendingRequests: maxPending,
       maxRequestsPerGuest: maxPerGuest,
+      streamingSearch: isSpotifyConfigured(),
     },
     djToken,
     crowdUrl: `${crowdBaseUrl}/r/${code}`,
@@ -369,6 +395,111 @@ app.get("/sessions/:code/library/search", (c) => {
   });
 });
 
+/** Open search: Spotify catalog (+ optional matches in DJ's synced library). */
+app.get("/sessions/:code/tracks/search", async (c) => {
+  const q = c.req.query("q")?.trim() ?? "";
+  const code = c.req.param("code").trim().toUpperCase();
+  const session = db
+    .prepare(`SELECT * FROM sessions WHERE code = ?`)
+    .get(code) as SessionRow | undefined;
+  if (!session) return c.json({ error: "Session not found" }, 404);
+
+  const limit = Math.min(parseInt(c.req.query("limit") || "20", 10), 50);
+  if (q.length < 2) {
+    return c.json({ results: [], mode: "none" as const, streamingSearch: sessionUsesStreamingSearch(session) });
+  }
+
+  const streaming = sessionUsesStreamingSearch(session);
+  const hits: TrackSearchHit[] = [];
+  const seen = new Set<string>();
+
+  const dedupeKey = (title: string, artist: string) =>
+    `${normalizeTitle(title)}|${normalizeTitle(artist)}`;
+
+  if (streaming) {
+    const spotify = await searchSpotifyTracks(q, limit);
+    for (const t of spotify) {
+      const dk = dedupeKey(t.title, t.artist);
+      seen.add(dk);
+      hits.push({
+        id: `spotify:${t.spotifyId}`,
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        bpm: t.bpm,
+        key: t.key,
+        durationSec: t.durationSec,
+        albumArtUrl: t.albumArtUrl,
+        source: "spotify",
+        inStock: false,
+        spotifyId: t.spotifyId,
+        playedEarlierTonight: isPlayedEarlierTonight(session.id, t.title, t.artist),
+      });
+    }
+  }
+
+  const localRows = db
+    .prepare(
+      `SELECT id, external_id, title, artist, album, bpm, key, duration_sec
+       FROM tracks WHERE session_id = ?
+       AND (lower(title) LIKE ? OR lower(artist) LIKE ?)
+       ORDER BY title LIMIT ?`,
+    )
+    .all(session.id, `%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`, limit) as Array<{
+    id: string;
+    external_id: string;
+    title: string;
+    artist: string;
+    album: string | null;
+    bpm: number | null;
+    key: string | null;
+    duration_sec: number | null;
+  }>;
+
+  for (const r of localRows) {
+    const dk = dedupeKey(r.title, r.artist);
+    if (seen.has(dk)) {
+      const existing = hits.find((h) => dedupeKey(h.title, h.artist) === dk);
+      if (existing) {
+        existing.inStock = true;
+        existing.libraryTrackId = r.id;
+        if (!existing.bpm && r.bpm) existing.bpm = r.bpm;
+        if (!existing.key && r.key) existing.key = r.key ?? undefined;
+      }
+      continue;
+    }
+    seen.add(dk);
+    hits.push({
+      id: r.id,
+      title: r.title,
+      artist: r.artist,
+      album: r.album ?? undefined,
+      bpm: r.bpm ?? undefined,
+      key: r.key ?? undefined,
+      durationSec: r.duration_sec ?? undefined,
+      source: "library",
+      inStock: true,
+      libraryTrackId: r.id,
+      playedEarlierTonight: isPlayedEarlierTonight(session.id, r.title, r.artist),
+    });
+  }
+
+  if (!streaming && hits.length === 0) {
+    return c.json({
+      results: [],
+      mode: "library" as const,
+      streamingSearch: false,
+      hint: "Sync your library in the booth app, or configure Spotify API keys on the server.",
+    });
+  }
+
+  return c.json({
+    results: hits.slice(0, limit),
+    mode: streaming ? ("spotify" as const) : ("library" as const),
+    streamingSearch: streaming,
+  });
+});
+
 app.post("/sessions/:sessionId/played-tracks", async (c) => {
   const sessionId = c.req.param("sessionId");
   if (!requireDj(c, sessionId)) return c.json({ error: "Unauthorized" }, 401);
@@ -445,6 +576,10 @@ app.post("/sessions/:code/requests", async (c) => {
     artist?: string;
     message?: string;
     trackId?: string;
+    spotifyId?: string;
+    bpm?: number;
+    key?: string;
+    albumArtUrl?: string;
   };
 
   const title = body.title?.trim();
@@ -453,26 +588,52 @@ app.post("/sessions/:code/requests", async (c) => {
 
   let inStock = false;
   let matchedTrackId: string | null = null;
+  let source: RequestSource = "manual";
+  let externalId: string | null = null;
+  let reqBpm: number | null = body.bpm ?? null;
+  let reqKey: string | null = body.key?.trim() || null;
+  let albumArt: string | null = body.albumArtUrl?.trim() || null;
 
-  if (body.trackId) {
+  if (body.spotifyId?.trim()) {
+    source = "spotify";
+    externalId = body.spotifyId.trim();
+    if (reqBpm == null || !reqKey) {
+      const feat = await getSpotifyTrackFeatures(externalId);
+      if (reqBpm == null && feat.bpm) reqBpm = feat.bpm;
+      if (!reqKey && feat.key) reqKey = feat.key;
+    }
+  }
+
+  const libraryId = body.trackId?.trim();
+  if (libraryId) {
     const track = db
-      .prepare(`SELECT id FROM tracks WHERE id = ? AND session_id = ?`)
-      .get(body.trackId, session.id) as { id: string } | undefined;
+      .prepare(`SELECT id, bpm, key FROM tracks WHERE id = ? AND session_id = ?`)
+      .get(libraryId, session.id) as
+      | { id: string; bpm: number | null; key: string | null }
+      | undefined;
     if (track) {
       inStock = true;
       matchedTrackId = track.id;
+      source = "library";
+      if (reqBpm == null && track.bpm) reqBpm = track.bpm;
+      if (!reqKey && track.key) reqKey = track.key;
     }
   } else {
     const match = db
       .prepare(
-        `SELECT id FROM tracks WHERE session_id = ?
+        `SELECT id, bpm, key FROM tracks WHERE session_id = ?
          AND lower(title) = lower(?) AND lower(artist) = lower(?)
          LIMIT 1`,
       )
-      .get(session.id, title, artist) as { id: string } | undefined;
+      .get(session.id, title, artist) as
+      | { id: string; bpm: number | null; key: string | null }
+      | undefined;
     if (match) {
       inStock = true;
       matchedTrackId = match.id;
+      source = source === "spotify" ? "spotify" : "library";
+      if (reqBpm == null && match.bpm) reqBpm = match.bpm;
+      if (!reqKey && match.key) reqKey = match.key;
     }
   }
 
@@ -480,8 +641,8 @@ app.post("/sessions/:code/requests", async (c) => {
   const now = new Date().toISOString();
 
   db.prepare(
-    `INSERT INTO requests (id, session_id, title, artist, message, in_stock, matched_track_id, status, created_at, updated_at, guest_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+    `INSERT INTO requests (id, session_id, title, artist, message, in_stock, matched_track_id, status, created_at, updated_at, guest_id, source, external_id, bpm, key, album_art_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     requestId,
     session.id,
@@ -493,21 +654,34 @@ app.post("/sessions/:code/requests", async (c) => {
     now,
     now,
     guestId,
+    source,
+    externalId,
+    reqBpm,
+    reqKey,
+    albumArt,
   );
 
+  const inserted: RequestRow = {
+    id: requestId,
+    session_id: session.id,
+    title,
+    artist,
+    message: body.message?.trim() || null,
+    in_stock: inStock ? 1 : 0,
+    matched_track_id: matchedTrackId,
+    status: "pending",
+    created_at: now,
+    source,
+    external_id: externalId,
+    bpm: reqBpm,
+    key: reqKey,
+    album_art_url: albumArt,
+  };
+
   return c.json({
-    request: rowToRequest({
-      id: requestId,
-      session_id: session.id,
-      title,
-      artist,
-      message: body.message?.trim() || null,
-      in_stock: inStock ? 1 : 0,
-      matched_track_id: matchedTrackId,
-      status: "pending",
-      created_at: now,
-    }),
-    message: "Request sent. The DJ will see it when they sync — no venue Wi‑Fi needed.",
+    request: rowToRequest(inserted),
+    message:
+      "Request sent — it appears on the DJ's screen. No need to shout; they'll Accept or Decline when ready.",
   }, 201);
 });
 

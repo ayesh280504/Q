@@ -168,9 +168,11 @@ export default function App() {
   const [accountEmail, setAccountEmail] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
   const [accountHandle, setAccountHandle] = useState("");
-  const [accountDisplayName, setAccountDisplayName] = useState("");
   const [accountMode, setAccountMode] = useState<"signin" | "register">("signin");
   const [lanIpv4, setLanIpv4] = useState<string | null>(null);
+  const [spotifyCrowdSearch, setSpotifyCrowdSearch] = useState(false);
+  const [requestPulse, setRequestPulse] = useState(false);
+  const prevPendingCountRef = useRef(0);
   const requestsRef = useRef(requests);
   requestsRef.current = requests;
   const lastSyncRef = useRef(lastSync);
@@ -195,6 +197,14 @@ export default function App() {
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
+  }, []);
+
+  useEffect(() => {
+    const base = import.meta.env.VITE_Q_API_URL || "http://localhost:8787";
+    void fetch(`${base}/health`)
+      .then((r) => r.json())
+      .then((d: { spotifySearch?: boolean }) => setSpotifyCrowdSearch(Boolean(d.spotifySearch)))
+      .catch(() => setSpotifyCrowdSearch(false));
   }, []);
 
   const doSync = useCallback(
@@ -233,6 +243,21 @@ export default function App() {
   }, [online]);
 
   useEffect(refreshOutbox, [gig, refreshOutbox]);
+
+  useEffect(() => {
+    if (!gig) {
+      prevPendingCountRef.current = 0;
+      return;
+    }
+    const n = requests.filter((r) => r.status === "pending").length;
+    if (n > prevPendingCountRef.current) {
+      setRequestPulse(true);
+      const t = window.setTimeout(() => setRequestPulse(false), 2600);
+      prevPendingCountRef.current = n;
+      return () => window.clearTimeout(t);
+    }
+    prevPendingCountRef.current = n;
+  }, [requests, gig]);
 
   useEffect(() => {
     if (!getAccountToken()) return;
@@ -590,6 +615,11 @@ export default function App() {
           {gig ? (
             <span className="dock-meta">
               {gig.displayName} · <strong>{gig.code}</strong>
+              {pending.length > 0 && (
+                <span className={`dock-pending-badge ${requestPulse ? "pulse" : ""}`}>
+                  {pending.length} pending
+                </span>
+              )}
             </span>
           ) : (
             <span className="dock-meta muted">No gig</span>
@@ -719,16 +749,9 @@ export default function App() {
                     <>
                       <input
                         className="field-input"
-                        placeholder="Handle (e.g. dj-ayesh)"
+                        placeholder="Username (e.g. dj_ayesh)"
                         value={accountHandle}
-                        onChange={(e) => setAccountHandle(e.target.value)}
-                        style={{ marginTop: "0.35rem" }}
-                      />
-                      <input
-                        className="field-input"
-                        placeholder="Display name"
-                        value={accountDisplayName}
-                        onChange={(e) => setAccountDisplayName(e.target.value)}
+                        onChange={(e) => setAccountHandle(e.target.value.toLowerCase())}
                         style={{ marginTop: "0.35rem" }}
                       />
                     </>
@@ -761,8 +784,8 @@ export default function App() {
                             ? await registerAccount({
                                 email: accountEmail,
                                 password: accountPassword,
-                                handle: accountHandle,
-                                displayName: accountDisplayName || accountHandle,
+                                handle: accountHandle.trim(),
+                                displayName: accountHandle.trim(),
                               })
                             : await loginAccount(accountEmail, accountPassword);
                         saveAccountToken(res.accountToken);
@@ -825,6 +848,9 @@ export default function App() {
               Phone: {phoneCrowdUrl}
             </p>
             <p className="muted">{gig.trackCount} tracks in local catalog</p>
+            {spotifyCrowdSearch && (
+              <p className="muted">Crowd search: Spotify (BPM + key on each request)</p>
+            )}
             <p className="muted limits-line">
               Limits: {pending.length}/{gig.maxPendingRequests} pending · {gig.maxRequestsPerGuest}/person
             </p>
@@ -993,9 +1019,14 @@ export default function App() {
             <div className="pane-header">
               <h2 className="pane-heading">Requests</h2>
               {gig && pending.length > 0 && (
-                <span className="queue-count">{pending.length}</span>
+                <span className={`queue-count ${requestPulse ? "pulse" : ""}`}>{pending.length}</span>
               )}
             </div>
+            {gig && (
+              <p className="pane-sub requests-hint muted">
+                Accept or Decline on screen — keep your headphones on; no crowd yelling needed.
+              </p>
+            )}
             {!gig && <p className="pane-empty muted">Start a gig first.</p>}
             {gig && pending.length === 0 && (
               <p className="pane-empty muted">
@@ -1019,7 +1050,13 @@ export default function App() {
                   )}
                 </div>
                 <h3>{r.title}</h3>
-                <p className="meta">{r.artist}</p>
+                <p className="meta">
+                  {r.artist}
+                  {r.bpm != null && ` · ${r.bpm} BPM`}
+                  {r.key && ` · ${r.key}`}
+                  {r.source === "spotify" && " · Spotify"}
+                  {r.inStock && " · In crate"}
+                </p>
                 <div className="actions">
                   <button
                     type="button"

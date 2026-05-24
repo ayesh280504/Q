@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import MarketingHome from "./pages/MarketingHome";
+import DownloadPage from "./pages/DownloadPage";
 import CommunityFeed from "./pages/CommunityFeed";
 import DjProfilePage from "./pages/DjProfilePage";
 import AuthPage from "./pages/AuthPage";
@@ -10,6 +11,7 @@ import VerifyEmailPage from "./pages/VerifyEmailPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import StudioPage from "./pages/StudioPage";
+import SettingsPage from "./pages/SettingsPage";
 
 export default function App() {
   return (
@@ -17,6 +19,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MarketingHome />} />
+          <Route path="/download" element={<DownloadPage />} />
           <Route path="/community" element={<CommunityFeed />} />
           <Route path="/dj/:handle" element={<DjProfilePage />} />
           <Route path="/login" element={<AuthPage />} />
@@ -27,6 +30,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/welcome" element={<CompleteProfilePage />} />
           <Route path="/studio" element={<StudioPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

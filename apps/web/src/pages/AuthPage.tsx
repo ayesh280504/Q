@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import CommunityNav from "../components/CommunityNav";
 import { supabaseConfigured } from "../context/AuthContext";
 import { savePendingSignup } from "../lib/authPending";
-import { fetchMe, login, register, saveAccountToken, syncProfile } from "../lib/accountApi";
+import { ensureQProfile } from "../lib/ensureQProfile";
+import { login, register, saveAccountToken } from "../lib/accountApi";
 import { supabase } from "../lib/supabase";
 
 const googleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE === "true";
@@ -15,28 +16,22 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [handle, setHandle] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const loginMessage = (location.state as { message?: string } | null)?.message;
 
-  async function afterSupabaseSession(opts?: { handle?: string; displayName?: string }) {
-    try {
-      await fetchMe();
-      navigate("/studio");
-    } catch {
-      if (opts?.handle) {
-        const res = await syncProfile({
-          handle: opts.handle,
-          displayName: opts.displayName || opts.handle,
-        });
-        saveAccountToken(res.accountToken);
-        navigate("/studio?onboard=1");
-      } else {
-        navigate("/welcome");
-      }
+  async function afterSupabaseSession() {
+    if (!supabase) return;
+    const { data } = await supabase.auth.getSession();
+    const result = await ensureQProfile(data.session);
+    if (result.ok) {
+      navigate(result.showTour ? "/studio?onboard=1" : "/studio", { replace: true });
+    } else if (result.reason === "sync-failed") {
+      setError(result.message ?? "Could not save username");
+    } else {
+      navigate("/welcome");
     }
   }
 
@@ -56,6 +51,7 @@ export default function AuthPage() {
     setError(null);
     setInfo(null);
     setBusy(true);
+    const handle = username.trim();
     try {
       if (supabaseConfigured && supabase) {
         if (mode === "register") {
@@ -64,25 +60,19 @@ export default function AuthPage() {
             password,
             options: {
               emailRedirectTo: `${window.location.origin}/auth/callback`,
-              data: { handle, display_name: displayName || handle },
+              data: { handle: handle.trim() },
             },
           });
           if (signUpError) throw signUpError;
           if (!data.session) {
-            savePendingSignup({
-              handle: handle.trim(),
-              displayName: displayName.trim() || handle.trim(),
-            });
+            savePendingSignup({ handle });
             navigate(
               `/verify-email?email=${encodeURIComponent(email.trim())}`,
               { replace: true },
             );
             return;
           }
-          await afterSupabaseSession({
-            handle: handle.trim(),
-            displayName: displayName.trim() || handle.trim(),
-          });
+          await afterSupabaseSession();
         } else {
           const { error: signInError } = await supabase.auth.signInWithPassword({
             email,
@@ -106,7 +96,7 @@ export default function AuthPage() {
 
       const res =
         mode === "register"
-          ? await register({ email, password, handle, displayName: displayName || handle })
+          ? await register({ email, password, handle })
           : await login(email, password);
       saveAccountToken(res.accountToken);
       navigate("/studio");
@@ -124,7 +114,7 @@ export default function AuthPage() {
         <h1>{mode === "register" ? "Create your DJ account" : "Sign in"}</h1>
         <p className="muted">
           {mode === "register"
-            ? "Your handle becomes your public profile URL and permanent booth QR."
+            ? "Your username is your public @handle, profile URL (/dj/username), and permanent booth QR."
             : "Access your mix locker and studio."}
         </p>
 
@@ -152,26 +142,17 @@ export default function AuthPage() {
 
         <form className="auth-form" onSubmit={onSubmit}>
           {mode === "register" && (
-            <>
-              <label>
-                Handle (e.g. dj_ayesh)
-                <input
-                  value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
-                  required={!supabaseConfigured || mode === "register"}
-                  pattern="[a-z][a-z0-9_]{2,23}"
-                  title="3–24 chars, lowercase letters, numbers, underscore"
-                />
-              </label>
-              <label>
-                Display name
-                <input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="DJ Ayesh"
-                />
-              </label>
-            </>
+            <label>
+              Username (e.g. dj_ayesh)
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                required={!supabaseConfigured || mode === "register"}
+                pattern="[a-z][a-z0-9_]{2,23}"
+                title="3–24 chars, lowercase letters, numbers, underscore"
+                autoComplete="username"
+              />
+            </label>
           )}
           <label>
             Email

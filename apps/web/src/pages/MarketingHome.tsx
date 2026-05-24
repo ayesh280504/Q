@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import QLogo from "../components/QLogo";
+import SiteNav from "../components/SiteNav";
 import HeroDeckBackdrop from "../components/HeroDeckBackdrop";
 import HeroScroll from "../components/HeroScroll";
 import { useHeroScrollProgress } from "../hooks/useHeroScrollProgress";
@@ -11,17 +11,7 @@ export default function MarketingHome() {
     <>
       <HeroDeckBackdrop progress={progress} />
 
-      <header className="nav nav-over-hero">
-        <Link to="/" className="logo">
-          <QLogo size={32} />
-        </Link>
-        <nav>
-          <Link to="/community">Community</Link>
-          <a href="#how">How it works</a>
-          <a href="#pricing">Pricing</a>
-          <a href="#download">Download</a>
-        </nav>
-      </header>
+      <SiteNav overHero />
 
       <main className="site-main">
         <HeroScroll progress={progress} />
@@ -57,9 +47,9 @@ export default function MarketingHome() {
             <article className="card">
               <h3>Booth mode</h3>
               <p>QR requests, queue, Serato now-playing — everything you&apos;ve been building.</p>
-              <a href="#download" className="btn-link">
+              <Link to="/download" className="btn-link">
                 Get the desktop app →
-              </a>
+              </Link>
             </article>
             <article className="card">
               <h3>Community</h3>
@@ -100,9 +90,12 @@ export default function MarketingHome() {
         <section id="download" className="section">
           <h2>Download</h2>
           <p className="lead narrow">
-            Q runs as a desktop app on your DJ laptop. Build from source with Rust + Node.
+            macOS and Windows booth apps — installers on the way. Until then, build from source or
+            run in dev mode.
           </p>
-          <pre className="code">npm run tauri:dev -w @q/desktop</pre>
+          <Link to="/download" className="btn primary">
+            Choose your platform →
+          </Link>
         </section>
       </main>
 

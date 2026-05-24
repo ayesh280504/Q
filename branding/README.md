@@ -2,8 +2,8 @@
 
 | File | Use |
 |------|-----|
-| `q-logo-square.png` | Source of truth (square crop, PNG) |
-| `q-logo.png` | Same — copied to app `public/` folders |
+| `q-logo.png` | Source of truth (500×500 square PNG) |
+| `q-logo-square.png` | Same file — used for Tauri/window icons |
 
 Regenerate desktop/window icons after updating the logo:
 

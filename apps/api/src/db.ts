@@ -70,6 +70,16 @@ ensureColumn(
   `ALTER TABLE sessions ADD COLUMN max_requests_per_guest INTEGER NOT NULL DEFAULT 3`,
 );
 ensureColumn("requests", "guest_id", `ALTER TABLE requests ADD COLUMN guest_id TEXT`);
+ensureColumn("requests", "source", `ALTER TABLE requests ADD COLUMN source TEXT`);
+ensureColumn("requests", "external_id", `ALTER TABLE requests ADD COLUMN external_id TEXT`);
+ensureColumn("requests", "bpm", `ALTER TABLE requests ADD COLUMN bpm REAL`);
+ensureColumn("requests", "key", `ALTER TABLE requests ADD COLUMN key TEXT`);
+ensureColumn("requests", "album_art_url", `ALTER TABLE requests ADD COLUMN album_art_url TEXT`);
+ensureColumn(
+  "sessions",
+  "streaming_search",
+  `ALTER TABLE sessions ADD COLUMN streaming_search INTEGER NOT NULL DEFAULT 1`,
+);
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_requests_guest ON requests(session_id, guest_id);
@@ -120,4 +130,6 @@ db.exec(`
 
 ensureColumn("sessions", "dj_user_id", `ALTER TABLE sessions ADD COLUMN dj_user_id TEXT`);
 ensureColumn("users", "supabase_id", `ALTER TABLE users ADD COLUMN supabase_id TEXT`);
+ensureColumn("users", "social_links", `ALTER TABLE users ADD COLUMN social_links TEXT`);
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase ON users(supabase_id) WHERE supabase_id IS NOT NULL`);
+

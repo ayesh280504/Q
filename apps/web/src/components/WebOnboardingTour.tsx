@@ -49,6 +49,7 @@ export default function WebOnboardingTour({ force, onDone }: WebOnboardingTourPr
   const [step, setStep] = useState(0);
 
   useEffect(() => {
+    if (hasCompletedWebOnboarding()) return;
     if (force || !hasCompletedWebOnboarding()) setOpen(true);
   }, [force]);
 
@@ -94,7 +95,7 @@ export default function WebOnboardingTour({ force, onDone }: WebOnboardingTourPr
         </div>
         {isLast && (
           <p className="muted small" style={{ marginTop: "1rem" }}>
-            <Link to="/community">Browse the feed</Link> · <Link to="/#download">Download booth app</Link>
+            <Link to="/community">Browse the feed</Link> · <Link to="/download">Download booth app</Link>
           </p>
         )}
       </div>

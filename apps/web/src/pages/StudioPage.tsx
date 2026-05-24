@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import CommunityNav from "../components/CommunityNav";
-import WebOnboardingTour from "../components/WebOnboardingTour";
+import LaunchAppButton from "../components/LaunchAppButton";
+import WebOnboardingTour, { hasCompletedWebOnboarding } from "../components/WebOnboardingTour";
 import { useAuth } from "../context/AuthContext";
 import {
   createMix,
@@ -9,28 +10,25 @@ import {
   fetchMyMixes,
   getAccountToken,
   updateMix,
-  updateProfile,
 } from "../lib/accountApi";
 import type { DjProfile, Mix } from "@q/shared";
 import "../community.css";
+import "../studio.css";
 
 export default function StudioPage() {
   const navigate = useNavigate();
-  const [search] = useSearchParams();
-  const { loading, profile, refreshProfile, supabaseSession } = useAuth();
+  const [search, setSearch] = useSearchParams();
+  const { loading, profileLoading, profile, supabaseSession } = useAuth();
   const [user, setUser] = useState<DjProfile | null>(null);
   const [mixes, setMixes] = useState<Mix[]>([]);
   const [title, setTitle] = useState("");
   const [externalUrl, setExternalUrl] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(true);
-  const [displayName, setDisplayName] = useState("");
-  const [bio, setBio] = useState("");
-  const [profileSaved, setProfileSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || profileLoading) return;
     if (!supabaseSession && !getAccountToken() && !profile) {
       navigate("/login", { replace: true });
       return;
@@ -41,12 +39,10 @@ export default function StudioPage() {
     }
     if (!profile) return;
     setUser(profile);
-    setDisplayName(profile.displayName);
-    setBio(profile.bio ?? "");
     void fetchMyMixes()
       .then((list) => setMixes(list.mixes))
       .catch(() => navigate("/login", { replace: true }));
-  }, [loading, profile, supabaseSession, navigate]);
+  }, [loading, profileLoading, profile, supabaseSession, navigate]);
 
   async function onAdd(e: FormEvent) {
     e.preventDefault();
@@ -67,23 +63,6 @@ export default function StudioPage() {
     }
   }
 
-  async function onSaveProfile(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setProfileSaved(false);
-    try {
-      const { user: updated } = await updateProfile({
-        displayName: displayName.trim(),
-        bio: bio.trim() || undefined,
-      });
-      setUser(updated);
-      await refreshProfile();
-      setProfileSaved(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save profile");
-    }
-  }
-
   async function togglePublic(m: Mix) {
     const { mix } = await updateMix(m.id, { isPublic: !m.isPublic });
     setMixes((prev) => prev.map((x) => (x.id === mix.id ? mix : x)));
@@ -95,103 +74,114 @@ export default function StudioPage() {
     setMixes((prev) => prev.filter((x) => x.id !== m.id));
   }
 
-  if (loading || !user) return <p className="muted community-page">Loading studio…</p>;
+  function clearOnboardQuery() {
+    if (search.get("onboard") === "1") {
+      search.delete("onboard");
+      setSearch(search, { replace: true });
+    }
+  }
 
-  const showOnboarding = search.get("onboard") === "1";
+  if (loading || profileLoading || !user) {
+    return <p className="muted community-page">Loading studio…</p>;
+  }
+
+  const showOnboarding =
+    search.get("onboard") === "1" && !hasCompletedWebOnboarding();
+  const publicCount = mixes.filter((m) => m.isPublic).length;
 
   return (
-    <div className="community-page">
-      <WebOnboardingTour force={showOnboarding} />
+    <div className="community-page studio-page">
+      <WebOnboardingTour force={showOnboarding} onDone={clearOnboardQuery} />
       <CommunityNav />
       <main className="community-main">
-        <header className="community-header">
-          <h1>My studio</h1>
+        <header className="studio-hero">
+          <p className="studio-hero-kicker">DJ workspace</p>
+          <h1>Hey, @{user.handle}</h1>
           <p className="muted">
-            Profile: <Link to={`/dj/${user.handle}`}>/dj/{user.handle}</Link>
+            Your mix locker for the web. Run the booth app on your laptop for gigs, QR, and
+            requests.
           </p>
         </header>
 
-        <form className="auth-form" onSubmit={onSaveProfile}>
-          <h2>Profile</h2>
-          <label>
-            Display name
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Bio
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={3}
-              placeholder="Short bio for your public page"
-            />
-          </label>
-          {profileSaved && <p className="muted small">Profile saved.</p>}
-          <button type="submit" className="btn ghost">
-            Save profile
-          </button>
-        </form>
+        <div className="studio-actions">
+          <div className="studio-action-card accent">
+            <LaunchAppButton label="Launch booth app" className="btn primary" />
+            <span>Opens Q on this computer (after install)</span>
+          </div>
+          <Link to={`/dj/${user.handle}`} className="studio-action-card">
+            <strong>View public profile</strong>
+            <span>What fans see — mixes, bio, socials</span>
+          </Link>
+          <Link to="/settings" className="studio-action-card">
+            <strong>Settings</strong>
+            <span>Bio, Instagram, X, SoundCloud, and more</span>
+          </Link>
+        </div>
 
-        <form className="auth-form mix-form" onSubmit={onAdd}>
-          <h2>Add a mix</h2>
-          <p className="muted small">
-            Paste a link to your set (SoundCloud, Mixcloud, etc.). You keep the files — Q only
-            links.
+        <div className="studio-mix-panel">
+          <h2>Mix locker</h2>
+          <p className="muted small" style={{ marginTop: "-0.5rem", marginBottom: "1rem" }}>
+            {mixes.length} total · {publicCount} on the public feed
           </p>
-          <label>
-            Title
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-          </label>
-          <label>
-            Stream URL
-            <input
-              value={externalUrl}
-              onChange={(e) => setExternalUrl(e.target.value)}
-              required
-              placeholder="https://soundcloud.com/..."
-            />
-          </label>
-          <label>
-            Description (optional)
-            <input value={description} onChange={(e) => setDescription(e.target.value)} />
-          </label>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={isPublic}
-              onChange={(e) => setIsPublic(e.target.checked)}
-            />
-            Show on my public profile &amp; feed
-          </label>
-          {error && <p className="error">{error}</p>}
-          <button type="submit" className="btn primary">
-            Save mix
-          </button>
-        </form>
 
-        <h2 className="section-label">Your mixes</h2>
-        <ul className="mix-feed">
-          {mixes.map((m) => (
-            <li key={m.id} className="mix-card">
-              <h3>{m.title}</h3>
-              <p className="muted small">
-                {m.isPublic ? "Public" : "Private"} · {m.playCount} plays
-              </p>
-              <div className="mix-card-actions" style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="button" className="btn ghost" onClick={() => togglePublic(m)}>
-                  {m.isPublic ? "Make private" : "Make public"}
-                </button>
-                <button type="button" className="btn ghost" onClick={() => removeMix(m)}>
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+          <form className="auth-form" onSubmit={onAdd}>
+            <label>
+              Title
+              <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+            </label>
+            <label>
+              Stream link
+              <input
+                type="url"
+                value={externalUrl}
+                onChange={(e) => setExternalUrl(e.target.value)}
+                placeholder="SoundCloud, Mixcloud, YouTube…"
+                required
+              />
+            </label>
+            <label>
+              Description (optional)
+              <input value={description} onChange={(e) => setDescription(e.target.value)} />
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+              />
+              Show on community feed
+            </label>
+            {error && <p className="error">{error}</p>}
+            <button type="submit" className="btn primary">
+              Add mix
+            </button>
+          </form>
+
+          <ul className="mix-feed" style={{ marginTop: "1.5rem" }}>
+            {mixes.map((m) => (
+              <li key={m.id} className="mix-card">
+                <h3>{m.title}</h3>
+                {m.description && <p className="mix-desc">{m.description}</p>}
+                <p className="muted small">
+                  {m.isPublic ? "Public" : "Private"} · {m.playCount} plays
+                </p>
+                <div className="mix-engagement">
+                  <button type="button" className="mix-engagement-btn" onClick={() => void togglePublic(m)}>
+                    {m.isPublic ? "Make private" : "Publish"}
+                  </button>
+                  <button type="button" className="mix-engagement-btn" onClick={() => void removeMix(m)}>
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {mixes.length === 0 && (
+            <p className="muted" style={{ marginTop: "1rem" }}>
+              No mixes yet — add your first link above.
+            </p>
+          )}
+        </div>
       </main>
     </div>
   );

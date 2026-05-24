@@ -53,15 +53,11 @@ async function api<T>(
   return res.json() as Promise<T>;
 }
 
-export function register(payload: {
-  email: string;
-  password: string;
-  handle: string;
-  displayName: string;
-}) {
+export function register(payload: { email: string; password: string; handle: string }) {
+  const handle = payload.handle.trim();
   return api<AuthResponse>("/auth/register", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, handle, displayName: handle }),
   });
 }
 
@@ -72,15 +68,12 @@ export function login(email: string, password: string) {
   });
 }
 
-export function syncProfile(payload: {
-  handle: string;
-  displayName: string;
-  avatarUrl?: string;
-}) {
+export function syncProfile(payload: { handle: string; avatarUrl?: string }) {
+  const handle = payload.handle.trim();
   return api<AuthResponse>("/auth/sync", {
     method: "POST",
     auth: true,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ handle, displayName: handle, avatarUrl: payload.avatarUrl }),
   });
 }
 
@@ -89,9 +82,9 @@ export function fetchMe() {
 }
 
 export function updateProfile(payload: {
-  displayName?: string;
   bio?: string;
   avatarUrl?: string;
+  socialLinks?: import("@q/shared").DjSocialLinks;
 }) {
   return api<{ user: DjProfile }>("/auth/me", {
     method: "PATCH",
@@ -100,14 +93,87 @@ export function updateProfile(payload: {
   });
 }
 
+export type FeedMix = Mix & {
+  dj: { handle: string; displayName: string; verified: boolean; avatarUrl?: string };
+  likeCount?: number;
+  commentCount?: number;
+  likedByMe?: boolean;
+  savedByMe?: boolean;
+};
+
 export function fetchFeed() {
+  return api<{ mixes: FeedMix[] }>("/mixes/feed", { auth: true });
+}
+
+export function fetchFollowingFeed() {
+  return api<{ mixes: FeedMix[] }>("/auth/feed/following", { auth: true });
+}
+
+export function likeMix(mixId: string) {
+  return api<{ likeCount: number; commentCount: number; likedByMe: boolean; savedByMe: boolean }>(
+    `/auth/mixes/${mixId}/like`,
+    { method: "POST", auth: true },
+  );
+}
+
+export function unlikeMix(mixId: string) {
+  return api<{ likeCount: number; commentCount: number; likedByMe: boolean; savedByMe: boolean }>(
+    `/auth/mixes/${mixId}/like`,
+    { method: "DELETE", auth: true },
+  );
+}
+
+export function saveMix(mixId: string) {
+  return api<{ likeCount: number; commentCount: number; likedByMe: boolean; savedByMe: boolean }>(
+    `/auth/mixes/${mixId}/save`,
+    { method: "POST", auth: true },
+  );
+}
+
+export function unsaveMix(mixId: string) {
+  return api<{ likeCount: number; commentCount: number; likedByMe: boolean; savedByMe: boolean }>(
+    `/auth/mixes/${mixId}/save`,
+    { method: "DELETE", auth: true },
+  );
+}
+
+export function fetchMixComments(mixId: string) {
   return api<{
-    mixes: Array<
-      Mix & {
-        dj: { handle: string; displayName: string; verified: boolean; avatarUrl?: string };
-      }
-    >;
-  }>("/mixes/feed");
+    comments: Array<{
+      id: string;
+      body: string;
+      createdAt: string;
+      author: { handle: string; displayName: string };
+    }>;
+  }>(`/auth/mixes/${mixId}/comments`, { auth: true });
+}
+
+export function postMixComment(mixId: string, body: string) {
+  return api<{ comment: { id: string; body: string } }>(`/auth/mixes/${mixId}/comments`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function followDj(handle: string) {
+  return api<{ ok: boolean; following: boolean }>(`/auth/follow/${encodeURIComponent(handle)}`, {
+    method: "POST",
+    auth: true,
+  });
+}
+
+export function unfollowDj(handle: string) {
+  return api<{ ok: boolean; following: boolean }>(`/auth/follow/${encodeURIComponent(handle)}`, {
+    method: "DELETE",
+    auth: true,
+  });
+}
+
+export function fetchFollowStatus(handle: string) {
+  return api<{ following: boolean }>(`/auth/follow/${encodeURIComponent(handle)}`, {
+    auth: true,
+  });
 }
 
 export function fetchDjProfile(handle: string) {

@@ -73,7 +73,7 @@ export default function QrSticker({
           id="q-print-sticker"
         >
           {!compact && <QLogo size={44} className="sticker-brand-logo" />}
-          {!compact && <p className="sticker-tagline">Request a track</p>}
+          {!compact && <p className="sticker-tagline">Scan to request — from your phone</p>}
           <div className="sticker-qr-wrap">
             <QRCodeSVG
               value={phoneCrowdUrl}
