@@ -94,7 +94,7 @@ export default function SettingsPage() {
             <h2>Social links</h2>
             <p className="muted small">Shown as buttons on your public DJ page.</p>
             {SOCIAL_FIELDS.map((f) => (
-              <label key={f.key}>
+              <label key={String(f.key)}>
                 {f.label}
                 <input
                   value={social[f.key] ?? ""}

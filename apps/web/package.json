@@ -9,6 +9,7 @@
     "preview": "vite preview --port 5174 --open"
   },
   "dependencies": {
+    "@q/shared": "*",
     "@react-three/drei": "^10.0.5",
     "@react-three/fiber": "^9.5.0",
     "@supabase/supabase-js": "^2.106.0",

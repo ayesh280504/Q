@@ -45,7 +45,7 @@ export default function DjSocialBar({ links }: { links?: DjSocialLinks }) {
         const raw = links[p.key]!.trim();
         return (
           <a
-            key={p.key}
+            key={String(p.key)}
             href={p.toUrl(raw)}
             target="_blank"
             rel="noopener noreferrer"
