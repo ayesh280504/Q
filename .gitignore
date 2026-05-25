@@ -11,3 +11,5 @@ data/
 target/
 apps/desktop/src-tauri/target/
 .DS_Store
+# TypeScript incremental build cache — regenerated on every `tsc` run, never useful to track.
+*.tsbuildinfo
