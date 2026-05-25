@@ -12,6 +12,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import StudioPage from "./pages/StudioPage";
 import SettingsPage from "./pages/SettingsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/welcome" element={<CompleteProfilePage />} />
           <Route path="/studio" element={<StudioPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

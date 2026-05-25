@@ -156,7 +156,7 @@ export default function DownloadPage() {
       </main>
       <footer className="footer">
         <p>
-          <Link to="/">← Back to home</Link>
+          <Link to="/">← Back to home</Link> · <Link to="/privacy">Privacy</Link>
         </p>
       </footer>
     </div>

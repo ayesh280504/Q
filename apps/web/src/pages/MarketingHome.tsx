@@ -100,7 +100,9 @@ export default function MarketingHome() {
       </main>
 
       <footer className="footer">
-        <p>Q — queue, not chaos.</p>
+        <p>
+          Q — queue, not chaos. · <Link to="/privacy">Privacy</Link>
+        </p>
       </footer>
     </>
   );
