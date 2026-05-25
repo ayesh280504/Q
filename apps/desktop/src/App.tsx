@@ -19,6 +19,7 @@ import QLogo from "./components/QLogo";
 import NowPlayingBar from "./components/NowPlayingBar";
 import QrSticker from "./components/QrSticker";
 import WelcomeTour from "./components/WelcomeTour";
+import StartGigPrompt from "./components/StartGigPrompt";
 import TrackMeta from "./components/TrackMeta";
 import { useSeratoPlayback, type SeratoLinkStatus } from "./hooks/useSeratoPlayback";
 import {
@@ -172,6 +173,7 @@ export default function App() {
   const [lanIpv4, setLanIpv4] = useState<string | null>(null);
   const [spotifyCrowdSearch, setSpotifyCrowdSearch] = useState(false);
   const [requestPulse, setRequestPulse] = useState(false);
+  const [startGigPromptOpen, setStartGigPromptOpen] = useState(false);
   const prevPendingCountRef = useRef(0);
   const requestsRef = useRef(requests);
   requestsRef.current = requests;
@@ -243,6 +245,37 @@ export default function App() {
   }, [online]);
 
   useEffect(refreshOutbox, [gig, refreshOutbox]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      if (!("__TAURI_INTERNALS__" in window)) return;
+      try {
+        const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+        const wantsStartGig = (url: string) => {
+          const u = url.toLowerCase();
+          return u.includes("start-gig") || u.includes("start_gig");
+        };
+        const handleUrls = (urls: string[]) => {
+          if (urls.some(wantsStartGig)) {
+            void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+              const win = getCurrentWindow();
+              void win.show();
+              void win.unminimize();
+              void win.setFocus();
+            });
+            setStartGigPromptOpen(true);
+          }
+        };
+        const initial = await getCurrent();
+        if (initial?.length) handleUrls(initial);
+        unlisten = await onOpenUrl(handleUrls);
+      } catch {
+        /* deep link unavailable in dev */
+      }
+    })();
+    return () => unlisten?.();
+  }, []);
 
   useEffect(() => {
     if (!gig) {
@@ -432,6 +465,7 @@ export default function App() {
       setMessage(
         `Gig started. Print your QR sticker, import library, then Sync now.${profileNote}`,
       );
+      setStartGigPromptOpen(false);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Could not start gig");
     } finally {
@@ -609,6 +643,13 @@ export default function App() {
   return (
     <div className={`shell ${dockMode ? "shell-dock" : ""}`}>
       <WelcomeTour />
+      <StartGigPrompt
+        open={startGigPromptOpen}
+        onClose={() => setStartGigPromptOpen(false)}
+        onStartGig={() => void startGig()}
+        busy={busy}
+        liveCode={gig?.code}
+      />
       {dockMode && (
         <header className="dock-topbar">
           <QLogo size={28} className="dock-brand" />

@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Q_APP_OPEN_URL } from "../lib/appLaunch";
+import { Q_APP_OPEN_URL, Q_APP_START_GIG_URL } from "../lib/appLaunch";
 
 interface LaunchAppButtonProps {
   className?: string;
   label?: string;
+  /** `start-gig` opens booth and shows the Start gig prompt */
+  intent?: "open" | "start-gig";
 }
 
 /**
@@ -13,12 +15,14 @@ interface LaunchAppButtonProps {
 export default function LaunchAppButton({
   className = "btn primary",
   label = "Open Q booth app",
+  intent = "open",
 }: LaunchAppButtonProps) {
   const [hint, setHint] = useState(false);
+  const launchUrl = intent === "start-gig" ? Q_APP_START_GIG_URL : Q_APP_OPEN_URL;
 
   function onLaunch() {
     setHint(false);
-    window.location.href = Q_APP_OPEN_URL;
+    window.location.href = launchUrl;
     window.setTimeout(() => setHint(true), 1200);
   }
 

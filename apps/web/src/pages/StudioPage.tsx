@@ -105,8 +105,8 @@ export default function StudioPage() {
 
         <div className="studio-actions">
           <div className="studio-action-card accent">
-            <LaunchAppButton label="Launch booth app" className="btn primary" />
-            <span>Opens Q on this computer (after install)</span>
+            <LaunchAppButton label="Start your gig" intent="start-gig" className="btn primary" />
+            <span>Opens Q and starts tonight&apos;s session + QR</span>
           </div>
           <Link to={`/dj/${user.handle}`} className="studio-action-card">
             <strong>View public profile</strong>
