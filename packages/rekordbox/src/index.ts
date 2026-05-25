@@ -1,9 +1,20 @@
 import { XMLParser } from "fast-xml-parser";
 import type { TrackRecord } from "@q/shared";
 
+export interface RekordboxPlaylist {
+  /** Slash-joined ancestor names, e.g. "Genres/Latin/Reggaeton". */
+  path: string;
+  /** Just the leaf playlist name. */
+  name: string;
+  /** Track IDs referenced by this playlist. */
+  trackIds: string[];
+}
+
 export interface RekordboxParseResult {
   tracks: TrackRecord[];
   sourcePath: string;
+  /** Flattened list of playlists (rekordbox's equivalent of Serato crates). */
+  playlists: RekordboxPlaylist[];
 }
 
 interface RawTrack {
@@ -15,6 +26,14 @@ interface RawTrack {
   "@_Tonality"?: string;
   "@_TotalTime"?: string;
   "@_Location"?: string;
+}
+
+interface RawPlaylistNode {
+  "@_Type"?: string;
+  "@_Name"?: string;
+  "@_Entries"?: string;
+  NODE?: RawPlaylistNode | RawPlaylistNode[];
+  TRACK?: { "@_Key"?: string } | Array<{ "@_Key"?: string }>;
 }
 
 function decodeLocation(location: string | undefined): string | undefined {
@@ -38,6 +57,40 @@ function parseDuration(value: string | undefined): number | undefined {
   return Number.isFinite(n) ? Math.round(n) : undefined;
 }
 
+function asArray<T>(v: T | T[] | undefined): T[] {
+  if (!v) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+function flattenPlaylists(
+  node: RawPlaylistNode | undefined,
+  ancestors: string[],
+): RekordboxPlaylist[] {
+  if (!node) return [];
+  const out: RekordboxPlaylist[] = [];
+  const name = node["@_Name"]?.trim() ?? "";
+  const type = node["@_Type"];
+  const isLeaf = type === "1";
+  const nextAncestors = name && name !== "ROOT" ? [...ancestors, name] : ancestors;
+
+  if (isLeaf) {
+    const trackRefs = asArray(node.TRACK);
+    const trackIds = trackRefs
+      .map((t) => t["@_Key"]?.trim())
+      .filter((s): s is string => !!s);
+    out.push({
+      path: nextAncestors.join("/") || name,
+      name: name || "(unnamed)",
+      trackIds,
+    });
+  }
+
+  for (const child of asArray(node.NODE)) {
+    out.push(...flattenPlaylists(child, nextAncestors));
+  }
+  return out;
+}
+
 export function parseRekordboxXml(xml: string, sourcePath: string): RekordboxParseResult {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -48,6 +101,9 @@ export function parseRekordboxXml(xml: string, sourcePath: string): RekordboxPar
     DJ_PLAYLISTS?: {
       COLLECTION?: {
         TRACK?: RawTrack | RawTrack[];
+      };
+      PLAYLISTS?: {
+        NODE?: RawPlaylistNode | RawPlaylistNode[];
       };
     };
   };
@@ -75,7 +131,13 @@ export function parseRekordboxXml(xml: string, sourcePath: string): RekordboxPar
     });
   }
 
-  return { tracks, sourcePath };
+  const rootNodes = asArray(doc?.DJ_PLAYLISTS?.PLAYLISTS?.NODE);
+  const playlists: RekordboxPlaylist[] = [];
+  for (const root of rootNodes) {
+    playlists.push(...flattenPlaylists(root, []));
+  }
+
+  return { tracks, sourcePath, playlists };
 }
 
 /** Common Rekordbox XML locations on Windows and macOS */

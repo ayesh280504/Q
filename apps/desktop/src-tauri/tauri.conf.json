@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,6 +45,14 @@
       "desktop": {
         "schemes": ["qdj"]
       }
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://q-api.onrender.com/desktop/update.json?target={{target}}&current_version={{current_version}}"
+      ],
+      "dialog": false,
+      "pubkey": "REPLACE_ME_WITH_TAURI_SIGNER_PUBKEY"
     }
   }
 }

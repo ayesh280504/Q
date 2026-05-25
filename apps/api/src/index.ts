@@ -77,6 +77,121 @@ app.use(
 
 app.route("/", community);
 
+/**
+ * Tauri auto-updater manifest. Proxies the latest GitHub Release so DJs get
+ * notified in-app when a new build is available — no manual JSON to maintain.
+ *
+ * Env vars:
+ *   Q_GITHUB_REPO    "owner/repo" (e.g. "qdj/q") — required
+ *   Q_GITHUB_TOKEN   optional, for private repos
+ */
+interface GithubAsset {
+  name: string;
+  browser_download_url: string;
+}
+interface GithubRelease {
+  tag_name: string;
+  name?: string;
+  body?: string;
+  published_at?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  assets: GithubAsset[];
+}
+
+const updateManifestCache: { fetchedAt: number; value: GithubRelease | null } = {
+  fetchedAt: 0,
+  value: null,
+};
+
+async function fetchLatestRelease(): Promise<GithubRelease | null> {
+  const repo = process.env.Q_GITHUB_REPO;
+  if (!repo) return null;
+  const ttlMs = 60_000;
+  if (Date.now() - updateManifestCache.fetchedAt < ttlMs && updateManifestCache.value) {
+    return updateManifestCache.value;
+  }
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "q-updater",
+  };
+  if (process.env.Q_GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.Q_GITHUB_TOKEN}`;
+  }
+  const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers });
+  if (!res.ok) return null;
+  const release = (await res.json()) as GithubRelease;
+  updateManifestCache.value = release;
+  updateManifestCache.fetchedAt = Date.now();
+  return release;
+}
+
+interface AssetMatchers {
+  exe: RegExp;
+  sig: RegExp;
+}
+
+const TARGET_ASSETS: Record<string, AssetMatchers> = {
+  "windows-x86_64": {
+    exe: /_x64-setup\.exe$/i,
+    sig: /_x64-setup\.exe\.sig$/i,
+  },
+  "darwin-aarch64": {
+    exe: /\.app\.tar\.gz$/i,
+    sig: /\.app\.tar\.gz\.sig$/i,
+  },
+  "darwin-x86_64": {
+    exe: /\.app\.tar\.gz$/i,
+    sig: /\.app\.tar\.gz\.sig$/i,
+  },
+  "linux-x86_64": {
+    exe: /\.AppImage$/i,
+    sig: /\.AppImage\.sig$/i,
+  },
+};
+
+app.get("/desktop/update.json", async (c) => {
+  const target = c.req.query("target") ?? "windows-x86_64";
+  const current = c.req.query("current_version")?.replace(/^v/, "") ?? "0.0.0";
+
+  const release = await fetchLatestRelease().catch(() => null);
+  if (!release || release.draft) {
+    return c.body(null, 204);
+  }
+
+  const version = (release.tag_name || "").replace(/^v/, "");
+  if (!version) return c.body(null, 204);
+  if (version === current) return c.body(null, 204);
+
+  const matchers = TARGET_ASSETS[target];
+  if (!matchers) return c.body(null, 204);
+
+  const exe = release.assets.find((a) => matchers.exe.test(a.name));
+  const sig = release.assets.find((a) => matchers.sig.test(a.name));
+  if (!exe || !sig) return c.body(null, 204);
+
+  let signature = "";
+  try {
+    const sigRes = await fetch(sig.browser_download_url);
+    if (sigRes.ok) signature = (await sigRes.text()).trim();
+  } catch {
+    /* If sig fetch fails the updater will skip the install. */
+  }
+  if (!signature) return c.body(null, 204);
+
+  return c.json({
+    version,
+    pub_date: release.published_at ?? new Date().toISOString(),
+    notes: release.body ?? "",
+    platforms: {
+      [target]: {
+        signature,
+        url: exe.browser_download_url,
+      },
+    },
+  });
+});
+
 type SessionRow = {
   id: string;
   code: string;
@@ -182,6 +297,35 @@ function isPlayedEarlierTonight(sessionId: string, title: string, artist: string
     .prepare(`SELECT title, artist FROM played_tracks WHERE session_id = ?`)
     .all(sessionId) as { title: string; artist: string }[];
   return rows.some((r) => tracksMatchApi(title, artist, r.title, r.artist));
+}
+
+const HOT_PLAY_THRESHOLD = 3;
+const NEW_TRACK_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+function getSessionDjUserId(sessionId: string): string | null {
+  const row = db
+    .prepare(`SELECT dj_user_id FROM sessions WHERE id = ?`)
+    .get(sessionId) as { dj_user_id: string | null } | undefined;
+  return row?.dj_user_id ?? null;
+}
+
+function isAddedRecently(addedAtIso: string | null | undefined): boolean {
+  if (!addedAtIso) return false;
+  const ts = Date.parse(addedAtIso);
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts < NEW_TRACK_WINDOW_MS;
+}
+
+function isHotForDj(djUserId: string | null, title: string, artist: string): boolean {
+  if (!djUserId) return false;
+  const row = db
+    .prepare(
+      `SELECT count FROM dj_play_counts WHERE dj_user_id = ? AND title_key = ? AND artist_key = ?`,
+    )
+    .get(djUserId, title.toLowerCase(), artist.toLowerCase()) as
+    | { count: number }
+    | undefined;
+  return (row?.count ?? 0) >= HOT_PLAY_THRESHOLD;
 }
 
 function trackMetaForRequest(
@@ -322,15 +466,26 @@ app.post("/sessions/:sessionId/library", async (c) => {
   const tracks = body.tracks ?? [];
   const now = new Date().toISOString();
 
+  // Snapshot existing tracks so we can preserve their `added_at` across the
+  // re-sync. external_id is unique per session.
+  const existingRows = db
+    .prepare(`SELECT external_id, added_at FROM tracks WHERE session_id = ?`)
+    .all(sessionId) as Array<{ external_id: string; added_at: string | null }>;
+  const existingAddedAt = new Map<string, string>();
+  for (const r of existingRows) {
+    if (r.added_at) existingAddedAt.set(r.external_id, r.added_at);
+  }
+
   const del = db.prepare(`DELETE FROM tracks WHERE session_id = ?`);
   const ins = db.prepare(
-    `INSERT INTO tracks (id, session_id, external_id, title, artist, album, bpm, key, duration_sec)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tracks (id, session_id, external_id, title, artist, album, bpm, key, duration_sec, added_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   const tx = db.transaction(() => {
     del.run(sessionId);
     for (const t of tracks) {
+      const addedAt = existingAddedAt.get(t.externalId) ?? now;
       ins.run(
         id(),
         sessionId,
@@ -341,6 +496,7 @@ app.post("/sessions/:sessionId/library", async (c) => {
         t.bpm ?? null,
         t.key ?? null,
         t.durationSec ?? null,
+        addedAt,
       );
     }
     db.prepare(`UPDATE sessions SET library_synced_at = ? WHERE id = ?`).run(now, sessionId);
@@ -363,7 +519,7 @@ app.get("/sessions/:code/library/search", (c) => {
   const rows = q
     ? (db
         .prepare(
-          `SELECT id, external_id, title, artist, album, bpm, key, duration_sec
+          `SELECT id, external_id, title, artist, album, bpm, key, duration_sec, added_at
            FROM tracks WHERE session_id = ?
            AND (lower(title) LIKE ? OR lower(artist) LIKE ?)
            ORDER BY title LIMIT ?`,
@@ -377,9 +533,11 @@ app.get("/sessions/:code/library/search", (c) => {
         bpm: number | null;
         key: string | null;
         duration_sec: number | null;
+        added_at: string | null;
       }>)
     : [];
 
+  const djUserId = getSessionDjUserId(session.id);
   return c.json({
     results: rows.map((r) => ({
       id: r.id,
@@ -392,6 +550,8 @@ app.get("/sessions/:code/library/search", (c) => {
       durationSec: r.duration_sec ?? undefined,
       inStock: true,
       playedEarlierTonight: isPlayedEarlierTonight(session.id, r.title, r.artist),
+      isNew: isAddedRecently(r.added_at),
+      isHot: isHotForDj(djUserId, r.title, r.artist),
     })),
   });
 });
@@ -441,7 +601,7 @@ app.get("/sessions/:code/tracks/search", async (c) => {
 
   const localRows = db
     .prepare(
-      `SELECT id, external_id, title, artist, album, bpm, key, duration_sec
+      `SELECT id, external_id, title, artist, album, bpm, key, duration_sec, added_at
        FROM tracks WHERE session_id = ?
        AND (lower(title) LIKE ? OR lower(artist) LIKE ?)
        ORDER BY title LIMIT ?`,
@@ -455,7 +615,10 @@ app.get("/sessions/:code/tracks/search", async (c) => {
     bpm: number | null;
     key: string | null;
     duration_sec: number | null;
+    added_at: string | null;
   }>;
+
+  const djUserId = getSessionDjUserId(session.id);
 
   for (const r of localRows) {
     const dk = dedupeKey(r.title, r.artist);
@@ -466,6 +629,7 @@ app.get("/sessions/:code/tracks/search", async (c) => {
         existing.libraryTrackId = r.id;
         if (!existing.bpm && r.bpm) existing.bpm = r.bpm;
         if (!existing.key && r.key) existing.key = r.key ?? undefined;
+        if (isAddedRecently(r.added_at)) existing.isNew = true;
       }
       continue;
     }
@@ -482,7 +646,18 @@ app.get("/sessions/:code/tracks/search", async (c) => {
       inStock: true,
       libraryTrackId: r.id,
       playedEarlierTonight: isPlayedEarlierTonight(session.id, r.title, r.artist),
+      isNew: isAddedRecently(r.added_at),
+      isHot: isHotForDj(djUserId, r.title, r.artist),
     });
+  }
+
+  // Spotify hits also get a HOT flag if the DJ has played that track often.
+  if (djUserId) {
+    for (const hit of hits) {
+      if (!hit.isHot) {
+        hit.isHot = isHotForDj(djUserId, hit.title, hit.artist);
+      }
+    }
   }
 
   if (!streaming && hits.length === 0) {
@@ -510,20 +685,32 @@ app.post("/sessions/:sessionId/played-tracks", async (c) => {
   };
   const tracks = body.tracks ?? [];
 
+  // Look up the DJ user so we can also bump cross-session play counts.
+  const sessRow = db
+    .prepare(`SELECT dj_user_id FROM sessions WHERE id = ?`)
+    .get(sessionId) as { dj_user_id: string | null } | undefined;
+  const djUserId = sessRow?.dj_user_id ?? null;
+  const nowIso = new Date().toISOString();
+
   const tx = db.transaction(() => {
     db.prepare(`DELETE FROM played_tracks WHERE session_id = ?`).run(sessionId);
-    const ins = db.prepare(
+    const insPlay = db.prepare(
       `INSERT INTO played_tracks (id, session_id, title, artist, played_at) VALUES (?, ?, ?, ?, ?)`,
+    );
+    const upsertCount = db.prepare(
+      `INSERT INTO dj_play_counts (dj_user_id, title_key, artist_key, count, last_played_at)
+       VALUES (?, ?, ?, 1, ?)
+       ON CONFLICT(dj_user_id, title_key, artist_key)
+       DO UPDATE SET count = count + 1, last_played_at = excluded.last_played_at`,
     );
     for (const t of tracks) {
       if (!t.title?.trim()) continue;
-      ins.run(
-        id(),
-        sessionId,
-        t.title.trim(),
-        t.artist?.trim() || "Unknown Artist",
-        t.playedAt ?? null,
-      );
+      const title = t.title.trim();
+      const artist = t.artist?.trim() || "Unknown Artist";
+      insPlay.run(id(), sessionId, title, artist, t.playedAt ?? null);
+      if (djUserId) {
+        upsertCount.run(djUserId, title.toLowerCase(), artist.toLowerCase(), nowIso);
+      }
     }
   });
   tx();

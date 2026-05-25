@@ -1,9 +1,27 @@
 import type { TrackRecord } from "@q/shared";
 
+export interface SeratoCrateInfo {
+  /** Absolute path to the .crate file. */
+  path: string;
+  /** Human display name (filename without extension, with %% separators converted to "/"). */
+  name: string;
+  /** Number of unique tracks in this crate. */
+  trackCount: number;
+}
+
 export interface SeratoParseResult {
   tracks: TrackRecord[];
   sourcePath: string;
   crateFilesRead: number;
+  /** Per-crate metadata. Empty when only a single crate file was provided. */
+  crates: SeratoCrateInfo[];
+}
+
+/** Convert "Hip%%Hop%%2026.crate" → "Hip / Hop / 2026" (Serato nesting). */
+export function crateDisplayName(filePath: string): string {
+  const file = filePath.replace(/\\/g, "/").split("/").pop() ?? filePath;
+  const stem = file.replace(/\.crate$/i, "");
+  return stem.split("%%").join(" / ");
 }
 
 type SeratoNode = { tag: string; value: SeratoNode[] | string | number | Uint8Array };
@@ -211,7 +229,12 @@ export function parseSeratoHistorySession(bytes: Uint8Array): SeratoNowPlaying |
 export function parseSeratoCrate(bytes: Uint8Array, sourcePath: string): SeratoParseResult {
   const tree = decodeCrate(bytes);
   const tracks = dedupeTracks(extractFromOtrk(tree));
-  return { tracks, sourcePath, crateFilesRead: 1 };
+  return {
+    tracks,
+    sourcePath,
+    crateFilesRead: 1,
+    crates: [{ path: sourcePath, name: crateDisplayName(sourcePath), trackCount: tracks.length }],
+  };
 }
 
 export function parseSeratoCrates(
@@ -219,13 +242,22 @@ export function parseSeratoCrates(
   sourceLabel: string,
 ): SeratoParseResult {
   const merged: TrackRecord[] = [];
+  const crateInfo: SeratoCrateInfo[] = [];
   for (const crate of crates) {
-    merged.push(...parseSeratoCrate(crate.bytes, crate.path).tracks);
+    const cTracks = extractFromOtrk(decodeCrate(crate.bytes));
+    const unique = dedupeTracks(cTracks);
+    crateInfo.push({
+      path: crate.path,
+      name: crateDisplayName(crate.path),
+      trackCount: unique.length,
+    });
+    merged.push(...unique);
   }
   return {
     tracks: dedupeTracks(merged),
     sourcePath: sourceLabel,
     crateFilesRead: crates.length,
+    crates: crateInfo,
   };
 }
 

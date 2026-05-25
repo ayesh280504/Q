@@ -133,3 +133,21 @@ ensureColumn("users", "supabase_id", `ALTER TABLE users ADD COLUMN supabase_id T
 ensureColumn("users", "social_links", `ALTER TABLE users ADD COLUMN social_links TEXT`);
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase ON users(supabase_id) WHERE supabase_id IS NOT NULL`);
 
+// Per-track "added to library" timestamp — preserved across re-syncs so the
+// crowd can see a "NEW" badge on tracks the DJ added in the last 14 days.
+ensureColumn("tracks", "added_at", `ALTER TABLE tracks ADD COLUMN added_at TEXT`);
+
+// Cross-gig DJ play counts — drives the "HOT" badge on crowd search.
+// Keyed by (dj_user_id, normalized title, normalized artist).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS dj_play_counts (
+    dj_user_id TEXT NOT NULL,
+    title_key TEXT NOT NULL,
+    artist_key TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    last_played_at TEXT NOT NULL,
+    PRIMARY KEY (dj_user_id, title_key, artist_key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_dj_play_counts_dj ON dj_play_counts(dj_user_id);
+`);
+

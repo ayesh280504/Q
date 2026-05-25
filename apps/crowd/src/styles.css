@@ -154,6 +154,43 @@ input {
   border: 1px solid rgba(251, 191, 36, 0.35);
 }
 
+.badge.badge-hot {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.28), rgba(249, 115, 22, 0.18));
+  color: #fda4af;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.45);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  animation: hot-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes hot-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
+  }
+}
+
+.badge.badge-new {
+  background: rgba(167, 139, 250, 0.18);
+  color: #ddd6fe;
+  border: 1px solid rgba(167, 139, 250, 0.55);
+  box-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
+  animation: new-glow 2.8s ease-in-out infinite;
+}
+
+@keyframes new-glow {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(167, 139, 250, 0.65);
+  }
+}
+
 .btn {
   border: none;
   border-radius: 10px;

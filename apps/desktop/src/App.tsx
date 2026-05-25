@@ -23,6 +23,19 @@ import StartGigPrompt from "./components/StartGigPrompt";
 import PrivacyFiltersPanel from "./components/PrivacyFiltersPanel";
 import OverlayDock from "./components/OverlayDock";
 import { enterOverlayMode, exitOverlayMode } from "./lib/overlayWindow";
+import UpdateBanner from "./components/UpdateBanner";
+import { checkForUpdate, suppressVersion, type AvailableUpdate } from "./lib/updater";
+import CrateSelectionPanel, { type CrateOption } from "./components/CrateSelectionPanel";
+import HiddenTracksInspector, {
+  type HiddenTrackEntry,
+} from "./components/HiddenTracksInspector";
+import {
+  loadSeratoSelection,
+  saveSeratoSelection,
+  loadRekordboxSelection,
+  saveRekordboxSelection,
+  type CrateSelection,
+} from "./lib/crateSelection";
 import {
   loadPrivacyFilters,
   partitionTracks,
@@ -201,11 +214,54 @@ export default function App() {
   const [startGigPromptOpen, setStartGigPromptOpen] = useState(false);
   const [privacyFilters, setPrivacyFilters] = useState<PrivacyFilters>(() => loadPrivacyFilters());
   const [privateHidden, setPrivateHidden] = useState(0);
+  const [hiddenEntries, setHiddenEntries] = useState<HiddenTrackEntry[]>([]);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
+  const [seratoSelection, setSeratoSelection] = useState<CrateSelection>(() =>
+    loadSeratoSelection(),
+  );
+  const [rekordboxSelection, setRekordboxSelection] = useState<CrateSelection>(() =>
+    loadRekordboxSelection(),
+  );
+  const [crateOptions, setCrateOptions] = useState<CrateOption[]>([]);
+  const [pendingUpdate, setPendingUpdate] = useState<AvailableUpdate | null>(null);
+  const installUpdateRef = useRef<(() => Promise<void>) | null>(null);
   const prevPendingCountRef = useRef(0);
+
+  useEffect(() => {
+    // Slight delay so the booth UI paints first; the check is best-effort.
+    const t = setTimeout(() => {
+      void checkForUpdate({
+        onAvailable: (info, install) => {
+          installUpdateRef.current = install;
+          setPendingUpdate(info);
+        },
+      });
+    }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   function updatePrivacyFilters(next: PrivacyFilters) {
     setPrivacyFilters(next);
     savePrivacyFilters(next);
+  }
+
+  function updateSeratoSelection(next: CrateSelection) {
+    setSeratoSelection(next);
+    saveSeratoSelection(next);
+  }
+
+  function updateRekordboxSelection(next: CrateSelection) {
+    setRekordboxSelection(next);
+    saveRekordboxSelection(next);
+  }
+
+  function allowOnce(externalId: string) {
+    setAllowedOnce((prev) => {
+      const next = new Set(prev);
+      next.add(externalId);
+      return next;
+    });
   }
   const requestsRef = useRef(requests);
   requestsRef.current = requests;
@@ -513,6 +569,9 @@ export default function App() {
       saveGig(next);
       setRequests([]);
       setLastSync(null);
+      // Reset per-gig "Allow once" exceptions — surprise-drop mixes should
+      // re-engage their privacy filter every time the DJ starts a new gig.
+      setAllowedOnce(new Set());
       const profileNote = res.crowdProfileUrl
         ? ` Permanent crowd link: ${res.crowdProfileUrl}`
         : res.profileUrl
@@ -574,11 +633,14 @@ export default function App() {
       const result =
         djSoftware === "rekordbox"
           ? mode === "auto"
-            ? await importRekordboxAuto()
-            : await importRekordboxFromDialog()
+            ? await importRekordboxAuto({ selection: rekordboxSelection })
+            : await importRekordboxFromDialog({ selection: rekordboxSelection })
           : mode === "auto"
-            ? await importSeratoAuto(privacyFilters)
-            : await importSeratoFromDialog(privacyFilters);
+            ? await importSeratoAuto({ privacy: privacyFilters, selection: seratoSelection })
+            : await importSeratoFromDialog({
+                privacy: privacyFilters,
+                selection: seratoSelection,
+              });
 
       if (!result) {
         setMessage(
@@ -591,13 +653,67 @@ export default function App() {
         return;
       }
 
-      const { publicTracks, privateTracks } = partitionTracks(result.tracks, privacyFilters);
+      // Compute crate options for the selection panel so the DJ can pick a
+      // narrower scope next import.
+      if (djSoftware === "serato" && "crates" in result) {
+        const opts = (result.crates ?? []).map((c) => ({
+          id: c.path,
+          name: c.name,
+          trackCount: c.trackCount,
+        }));
+        setCrateOptions(opts);
+      } else if (djSoftware === "rekordbox" && "playlists" in result) {
+        const opts = (result.playlists ?? []).map((p) => ({
+          id: p.path,
+          name: p.path,
+          trackCount: p.trackIds.length,
+        }));
+        setCrateOptions(opts);
+      }
+
+      // Privacy partition — but honour the per-gig "Allow once" exceptions.
+      const { publicTracks, privateTracks: rawPrivate } = partitionTracks(
+        result.tracks,
+        privacyFilters,
+      );
+      const allowedTracks = rawPrivate.filter((t) => allowedOnce.has(t.externalId));
+      const privateTracks = rawPrivate.filter((t) => !allowedOnce.has(t.externalId));
+      const localTracks = [...publicTracks, ...allowedTracks];
+
+      // Build the hidden-tracks inspector entries.
+      const entries: HiddenTrackEntry[] = [];
+      for (const t of privateTracks) {
+        const titleLow = t.title.toLowerCase();
+        const artistLow = t.artist.toLowerCase();
+        let reason = "Filter match";
+        for (const kw of privacyFilters.keywords) {
+          if (!kw.trim()) continue;
+          if (titleLow.includes(kw.toLowerCase()) || artistLow.includes(kw.toLowerCase())) {
+            reason = `Keyword: ${kw}`;
+            break;
+          }
+        }
+        if (reason === "Filter match" && privacyFilters.hideMashups) {
+          if (/\s[xX×]\s+\S/.test(t.title) && /\S\s[xX×]\s/.test(t.title)) {
+            reason = "Mashup pattern";
+          }
+        }
+        entries.push({ track: t, reason });
+      }
+
       const skippedCrates =
         "skippedCrates" in result ? (result as { skippedCrates: string[] }).skippedCrates : [];
+      for (const path of skippedCrates) {
+        entries.push({
+          track: { externalId: path, title: path.split(/[\\\/]/).pop() ?? path, artist: "(crate)" },
+          reason: "Private crate (filename match)",
+        });
+      }
+      setHiddenEntries(entries);
+
       const hiddenTotal = privateTracks.length + skippedCrates.length;
       setPrivateHidden(hiddenTotal);
 
-      const localTracks = publicTracks;
       const cratesRead =
         "crateFilesRead" in result ? (result as { crateFilesRead: number }).crateFilesRead : 0;
       const countLabel =
@@ -717,31 +833,59 @@ export default function App() {
     }
   }
 
+  const updateBanner = pendingUpdate && installUpdateRef.current && (
+    <UpdateBanner
+      update={pendingUpdate}
+      onInstall={async () => {
+        const fn = installUpdateRef.current;
+        if (fn) await fn();
+      }}
+      onDismiss={() => setPendingUpdate(null)}
+      onSkip={() => {
+        if (pendingUpdate) suppressVersion(pendingUpdate.version);
+        setPendingUpdate(null);
+      }}
+    />
+  );
+
   if (dockMode && gig) {
     return (
-      <OverlayDock
-        gigCode={gig.code}
-        gigDisplayName={gig.displayName}
-        pending={pending}
-        queue={queue}
-        pendingPulse={requestPulse}
-        online={online}
-        busy={busy}
-        pinned={pinWindow}
-        djSoftware={djSoftware}
-        onAccept={(id) => void handleDecision(id, "accepted")}
-        onDecline={(id) => void handleDecision(id, "declined")}
-        onPlayed={(item) => markQueuePlaying(item as UpNextItem)}
-        onSync={() => void syncNow()}
-        onTogglePin={() => void togglePinWindow()}
-        onExpand={() => void toggleViewMode()}
-      />
+      <>
+        {updateBanner}
+        <OverlayDock
+          gigCode={gig.code}
+          gigDisplayName={gig.displayName}
+          pending={pending}
+          queue={queue}
+          pendingPulse={requestPulse}
+          online={online}
+          busy={busy}
+          pinned={pinWindow}
+          djSoftware={djSoftware}
+          onAccept={(id) => void handleDecision(id, "accepted")}
+          onDecline={(id) => void handleDecision(id, "declined")}
+          onPlayed={(item) => markQueuePlaying(item as UpNextItem)}
+          onSync={() => void syncNow()}
+          onTogglePin={() => void togglePinWindow()}
+          onExpand={() => void toggleViewMode()}
+        />
+      </>
     );
   }
 
   return (
     <div className={`shell ${dockMode ? "shell-dock" : ""}`}>
       <WelcomeTour />
+      {updateBanner}
+      <HiddenTracksInspector
+        open={inspectorOpen}
+        title="Tracks hidden from the crowd"
+        entries={hiddenEntries}
+        allowed={allowedOnce}
+        onAllowOnce={allowOnce}
+        onClose={() => setInspectorOpen(false)}
+        emptyMessage="Your most recent import wasn't filtered."
+      />
       <StartGigPrompt
         open={startGigPromptOpen}
         onClose={() => setStartGigPromptOpen(false)}
@@ -794,6 +938,9 @@ export default function App() {
           </button>
         )}
 
+        {!dockMode && (
+          <h4 className="settings-section-label">DJ software</h4>
+        )}
         <div className="software-tabs">
           <button
             type="button"
@@ -994,6 +1141,7 @@ export default function App() {
             <p className="muted limits-line">
               Limits: {pending.length}/{gig.maxPendingRequests} pending · {gig.maxRequestsPerGuest}/person
             </p>
+            <h4 className="settings-section-label">Gig limits</h4>
             <div className="gig-setup compact">
               <label className="field-label">
                 QR name
@@ -1033,9 +1181,11 @@ export default function App() {
                 />
               </label>
             </div>
+            <h4 className="settings-section-label">Window</h4>
             <button type="button" className={`btn ghost ${pinWindow ? "active-pin" : ""}`} onClick={togglePinWindow}>
               {pinWindow ? "Unpin window" : "Pin on top"}
             </button>
+            <h4 className="settings-section-label">Library</h4>
             <button className="btn primary" onClick={syncNow} disabled={busy}>
               Sync now
             </button>
@@ -1045,11 +1195,32 @@ export default function App() {
             <button className="btn ghost" onClick={() => importLibrary("file")} disabled={busy}>
               {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates folder…"}
             </button>
+            <h4 className="settings-section-label">Audience visibility</h4>
             <PrivacyFiltersPanel
               filters={privacyFilters}
               onChange={updatePrivacyFilters}
               privateCount={privateHidden}
             />
+            {hiddenEntries.length > 0 && (
+              <button
+                type="button"
+                className="btn ghost btn-inspector"
+                onClick={() => setInspectorOpen(true)}
+              >
+                View hidden tracks ({hiddenEntries.length})
+              </button>
+            )}
+            {crateOptions.length > 0 && (
+              <CrateSelectionPanel
+                softwareLabel={djSoftware === "rekordbox" ? "Rekordbox" : "Serato"}
+                unitsLabel={djSoftware === "rekordbox" ? "playlists" : "crates"}
+                options={crateOptions}
+                selection={djSoftware === "rekordbox" ? rekordboxSelection : seratoSelection}
+                onChange={djSoftware === "rekordbox" ? updateRekordboxSelection : updateSeratoSelection}
+                onReimport={() => void importLibrary("auto")}
+                busy={busy}
+              />
+            )}
             <button
               className="btn ghost"
               onClick={() => {
@@ -1194,11 +1365,12 @@ export default function App() {
                     <span className="badge played-earlier">Played once already</span>
                   )}
                 </div>
-                <h3>{r.title}</h3>
+                <div className="request-headline">
+                  <h3>{r.title}</h3>
+                  <TrackMeta bpm={r.bpm} musicalKey={r.key} compact />
+                </div>
                 <p className="meta">
                   {r.artist}
-                  {r.bpm != null && ` · ${r.bpm} BPM`}
-                  {r.key && ` · ${r.key}`}
                   {r.source === "spotify" && " · Spotify"}
                   {r.inStock && " · In crate"}
                 </p>

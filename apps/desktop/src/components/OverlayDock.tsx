@@ -1,5 +1,6 @@
 import type { CrowdRequest } from "@q/shared";
 import QLogo from "./QLogo";
+import TrackMeta from "./TrackMeta";
 
 export interface OverlayDockQueueItem {
   requestId: string;
@@ -98,11 +99,12 @@ export default function OverlayDock({
             {pending.map((r) => (
               <li key={r.id} className="overlay-request">
                 <div className="overlay-track">
-                  <strong title={r.title}>{r.title}</strong>
-                  <span className="overlay-track-meta" title={`${r.artist}`}>
+                  <div className="overlay-track-head">
+                    <strong title={r.title}>{r.title}</strong>
+                    <TrackMeta bpm={r.bpm} musicalKey={r.key} compact />
+                  </div>
+                  <span className="overlay-track-meta" title={r.artist}>
                     {r.artist}
-                    {r.bpm != null && ` · ${r.bpm}`}
-                    {r.key ? ` · ${r.key}` : ""}
                   </span>
                   {r.playedEarlierTonight && (
                     <span className="overlay-badge">Played earlier</span>
@@ -144,12 +146,11 @@ export default function OverlayDock({
             {queue.map((item) => (
               <li key={item.requestId} className="overlay-queue-item">
                 <div className="overlay-track">
-                  <strong title={item.title}>{item.title}</strong>
-                  <span className="overlay-track-meta">
-                    {item.artist}
-                    {item.bpm != null && ` · ${item.bpm}`}
-                    {item.key ? ` · ${item.key}` : ""}
-                  </span>
+                  <div className="overlay-track-head">
+                    <strong title={item.title}>{item.title}</strong>
+                    <TrackMeta bpm={item.bpm} musicalKey={item.key} compact />
+                  </div>
+                  <span className="overlay-track-meta">{item.artist}</span>
                 </div>
                 <button
                   type="button"

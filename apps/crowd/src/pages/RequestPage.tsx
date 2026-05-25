@@ -175,6 +175,16 @@ export default function RequestPage() {
                 {t.key ? ` · ${t.key}` : ""}
               </p>
               <div className="track-badges">
+                {t.isHot && (
+                  <span className="badge badge-hot" title="DJ plays this track often">
+                    <span aria-hidden="true">🔥</span> HOT
+                  </span>
+                )}
+                {t.isNew && (
+                  <span className="badge badge-new" title="Newly added to the DJ's library">
+                    NEW
+                  </span>
+                )}
                 {t.source === "spotify" && <span className="badge source-spotify">Spotify</span>}
                 {t.inStock && <span className="badge source-library">In DJ crate</span>}
                 {t.playedEarlierTonight && (

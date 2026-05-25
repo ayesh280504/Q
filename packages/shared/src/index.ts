@@ -49,6 +49,10 @@ export interface TrackSearchHit {
   spotifyId?: string;
   libraryTrackId?: string;
   playedEarlierTonight?: boolean;
+  /** DJ added this track to their library recently (default: last 14 days). */
+  isNew?: boolean;
+  /** DJ has played this track often across past sets (default: 3+ plays). */
+  isHot?: boolean;
 }
 
 export interface Session {
