@@ -153,21 +153,6 @@ export default function DownloadPage() {
             )}
           </article>
         </div>
-
-        <section className="card download-dev-card">
-          <h2>Developers — run locally</h2>
-          <p className="muted">
-            While we finish hosted downloads, run the full stack on your machine:
-          </p>
-          <pre className="code">npm run dev:stack</pre>
-          <p className="muted small">
-            Terminal 2: <code>npm run tauri:dev -w @q/desktop</code>
-          </p>
-          <p className="muted small">
-            <Link to="/register">Create a DJ account</Link> on the web, then sign in inside the
-            desktop app before your first gig.
-          </p>
-        </section>
       </main>
       <footer className="footer">
         <p>

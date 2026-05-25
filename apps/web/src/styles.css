@@ -380,11 +380,19 @@ a:hover { text-decoration: underline; }
 }
 
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0.75rem 1.25rem;
   border-radius: 10px;
   font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  min-height: 2.75rem;
+  border: 1px solid transparent;
+  cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .btn.primary {
@@ -545,13 +553,18 @@ a:hover { text-decoration: underline; }
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  align-items: flex-start;
+  align-items: stretch;
   margin-top: 1rem;
 }
 
+.download-gig-actions > .btn,
 .download-gig-actions .launch-app-wrap {
-  flex: 1;
-  min-width: 160px;
+  flex: 1 1 200px;
+  min-width: 200px;
+}
+
+.download-gig-actions .launch-app-wrap > .btn {
+  width: 100%;
 }
 
 .booth-gig-modal-foot {
@@ -569,10 +582,21 @@ a:hover { text-decoration: underline; }
   gap: 1.5rem;
   margin: 2rem 0;
   text-align: left;
+  align-items: stretch;
+}
+
+.download-card {
+  display: flex;
+  flex-direction: column;
 }
 
 .download-card h2 {
   margin-top: 0;
+}
+
+.download-card .download-btn,
+.download-card .download-btn-disabled {
+  margin-top: auto;
 }
 
 .download-badge {
@@ -598,17 +622,19 @@ a:hover { text-decoration: underline; }
   line-height: 1.7;
 }
 
-.download-btn-disabled {
-  display: inline-block;
-  margin-top: 0.5rem;
-  opacity: 0.7;
-  cursor: not-allowed;
+.download-btn-disabled,
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.75rem;
+  width: 100%;
+  text-decoration: none;
 }
 
-.download-btn {
-  display: inline-block;
-  margin-top: 0.5rem;
-  text-decoration: none;
+.download-btn-disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .download-dev-card {
