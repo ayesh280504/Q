@@ -44,7 +44,7 @@ Open `apps/desktop/src-tauri/tauri.conf.json`. Find:
 "updater": {
   "active": true,
   "endpoints": [
-    "https://q-api.onrender.com/desktop/update.json?target={{target}}&current_version={{current_version}}"
+    "https://q-api-hp4b.onrender.com/desktop/update.json?target={{target}}&current_version={{current_version}}"
   ],
   "dialog": false,
   "pubkey": "REPLACE_ME_WITH_TAURI_SIGNER_PUBKEY"
@@ -92,7 +92,7 @@ that proxies the latest GitHub Release.
 
 > Test it locally after deploying:
 > ```
-> curl "https://q-api.onrender.com/desktop/update.json?target=windows-x86_64&current_version=0.0.0"
+> curl "https://q-api-hp4b.onrender.com/desktop/update.json?target=windows-x86_64&current_version=0.0.0"
 > ```
 > A 200 with JSON means it's working; a 204 means there's no newer release.
 
