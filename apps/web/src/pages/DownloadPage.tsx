@@ -5,6 +5,7 @@ import LaunchAppButton from "../components/LaunchAppButton";
 import SiteNav from "../components/SiteNav";
 import QLogo from "../components/QLogo";
 import { Q_APP_START_GIG_URL } from "../lib/appLaunch";
+import { getInstallerUrls } from "../lib/downloadUrls";
 import "../studio.css";
 import "../community.css";
 
@@ -31,6 +32,8 @@ export default function DownloadPage() {
       setSearch(search, { replace: true });
     }
   }
+
+  const installers = getInstallerUrls();
 
   return (
     <div className="download-page">
@@ -73,8 +76,8 @@ export default function DownloadPage() {
           <article className="card download-card">
             <h2>Windows</h2>
             <p className="muted">
-              For Serato / Rekordbox on PC. Build the desktop app from source (installer coming
-              soon).
+              For Serato / Rekordbox on PC. Install Q beside your DJ software — pin on top for
+              live requests.
             </p>
             <p className="download-badge">Requires Windows 10+</p>
             <details className="download-details">
@@ -94,16 +97,27 @@ export default function DownloadPage() {
                 </li>
               </ol>
             </details>
-            <span className="btn ghost download-btn-disabled" aria-disabled>
-              Windows installer — coming soon
-            </span>
+            {installers.windows ? (
+              <a
+                className="btn primary download-btn"
+                href={installers.windows}
+                download
+                rel="noopener noreferrer"
+              >
+                Download for Windows
+              </a>
+            ) : (
+              <span className="btn ghost download-btn-disabled" aria-disabled>
+                Windows installer — coming soon
+              </span>
+            )}
           </article>
 
           <article className="card download-card">
             <h2>macOS</h2>
             <p className="muted">
-              For Mac DJs using Serato or Rekordbox. Same build process until we host a signed
-              .dmg.
+              For Mac DJs using Serato or Rekordbox. Same booth app — QR, requests, and library
+              sync.
             </p>
             <p className="download-badge">Requires macOS 11+</p>
             <details className="download-details">
@@ -123,9 +137,20 @@ export default function DownloadPage() {
                 </li>
               </ol>
             </details>
-            <span className="btn ghost download-btn-disabled" aria-disabled>
-              Mac installer — coming soon
-            </span>
+            {installers.mac ? (
+              <a
+                className="btn primary download-btn"
+                href={installers.mac}
+                download
+                rel="noopener noreferrer"
+              >
+                Download for Mac
+              </a>
+            ) : (
+              <span className="btn ghost download-btn-disabled" aria-disabled>
+                Mac installer — coming soon
+              </span>
+            )}
           </article>
         </div>
 

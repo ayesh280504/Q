@@ -605,6 +605,12 @@ a:hover { text-decoration: underline; }
   cursor: not-allowed;
 }
 
+.download-btn {
+  display: inline-block;
+  margin-top: 0.5rem;
+  text-decoration: none;
+}
+
 .download-dev-card {
   text-align: left;
   max-width: 520px;
