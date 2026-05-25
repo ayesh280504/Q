@@ -3,6 +3,19 @@ import QLogo from "../components/QLogo";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
 import type { Session, TrackSearchHit } from "@q/shared";
+import { sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
+
+/**
+ * The API also sanitizes, but we run it again here so existing libraries
+ * (uploaded before this build) display cleanly without re-import.
+ */
+function cleanHit(t: TrackSearchHit): TrackSearchHit {
+  return {
+    ...t,
+    title: sanitizeTrackTitle(t.title) || t.title,
+    artist: sanitizeTrackArtist(t.artist) || t.artist,
+  };
+}
 
 export default function RequestPage() {
   const { code: rawCode } = useParams<{ code: string }>();
@@ -48,7 +61,7 @@ export default function RequestPage() {
           results: TrackSearchHit[];
           mode: "spotify" | "library" | "none";
         }>(`/sessions/${code}/tracks/search?q=${encodeURIComponent(q)}`);
-        setResults(data.results);
+        setResults(data.results.map(cleanHit));
       } catch (e) {
         setResults([]);
         const msg = e instanceof Error ? e.message : "";

@@ -1,3 +1,5 @@
+export * from "./sanitize.js";
+
 export type RequestStatus = "pending" | "accepted" | "declined";
 
 export interface TrackRecord {

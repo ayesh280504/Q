@@ -4,7 +4,6 @@ import BoothGigModal from "../components/BoothGigModal";
 import LaunchAppButton from "../components/LaunchAppButton";
 import SiteNav from "../components/SiteNav";
 import QLogo from "../components/QLogo";
-import { Q_APP_START_GIG_URL } from "../lib/appLaunch";
 import { getInstallerUrls } from "../lib/downloadUrls";
 import "../studio.css";
 import "../community.css";
@@ -67,9 +66,11 @@ export default function DownloadPage() {
             Use <strong>Start your gig</strong> above for the full walkthrough, or jump straight
             into the booth app.
           </p>
-          <a className="btn ghost" href={Q_APP_START_GIG_URL}>
-            Open booth & start gig
-          </a>
+          <LaunchAppButton
+            label="Open booth & start gig"
+            intent="start-gig"
+            className="btn ghost"
+          />
         </section>
 
         <div id="download-platforms" className="download-grid">

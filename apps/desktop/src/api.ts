@@ -5,8 +5,10 @@ import type {
   Session,
   SessionSettings,
   SyncStatus,
+  TrackRecord,
   TransitionSuggestion,
 } from "@q/shared";
+import { sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
 
 const API_BASE = import.meta.env.VITE_Q_API_URL || "http://localhost:8787";
 
@@ -61,11 +63,21 @@ export function updateSessionSettings(
   });
 }
 
+/**
+ * Crowd-facing sanitization happens here at the upload boundary: we strip
+ * version tags ("Dirty Intro", "Radio Edit") so the audience sees clean names.
+ * The DJ's local copy is untouched.
+ */
 export function syncLibrary(sessionId: string, token: string, tracks: unknown[]) {
+  const cleaned = (tracks as TrackRecord[]).map((t) => ({
+    ...t,
+    title: sanitizeTrackTitle(t.title) || t.title,
+    artist: sanitizeTrackArtist(t.artist) || t.artist,
+  }));
   return api<{ synced: number }>(`/sessions/${sessionId}/library`, {
     method: "POST",
     token,
-    body: JSON.stringify({ tracks }),
+    body: JSON.stringify({ tracks: cleaned }),
   });
 }
 

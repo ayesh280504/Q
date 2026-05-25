@@ -50,6 +50,7 @@ import type {
   TrackSearchHit,
   TransitionSuggestion,
 } from "@q/shared";
+import { sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
 
 const app = new Hono();
 const sessionCode = customAlphabet("23456789ABCDEFGHJKLMNPQRSTUVWXYZ", 6);
@@ -383,8 +384,8 @@ app.get("/sessions/:code/library/search", (c) => {
     results: rows.map((r) => ({
       id: r.id,
       externalId: r.external_id,
-      title: r.title,
-      artist: r.artist,
+      title: sanitizeTrackTitle(r.title) || r.title,
+      artist: sanitizeTrackArtist(r.artist) || r.artist,
       album: r.album ?? undefined,
       bpm: r.bpm ?? undefined,
       key: r.key ?? undefined,
@@ -471,8 +472,8 @@ app.get("/sessions/:code/tracks/search", async (c) => {
     seen.add(dk);
     hits.push({
       id: r.id,
-      title: r.title,
-      artist: r.artist,
+      title: sanitizeTrackTitle(r.title) || r.title,
+      artist: sanitizeTrackArtist(r.artist) || r.artist,
       album: r.album ?? undefined,
       bpm: r.bpm ?? undefined,
       key: r.key ?? undefined,

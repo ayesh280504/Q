@@ -112,6 +112,20 @@ community.post("/auth/sync", async (c) => {
   return c.json({ user: result.user, accountToken: result.accountToken }, 201);
 });
 
+/** Mint an account token for an authenticated user — used to hand auth off
+ *  from the web (Supabase session) to the installed booth app via deep link. */
+community.post("/auth/handoff", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const token = (await import("node:crypto")).randomBytes(32).toString("hex");
+  db.prepare(`UPDATE users SET account_token = ? WHERE id = ?`).run(token, user.id);
+  const updated = db.prepare(`SELECT * FROM users WHERE id = ?`).get(user.id) as
+    | Parameters<typeof rowToProfile>[0]
+    | undefined;
+  if (!updated) return c.json({ error: "Account not found" }, 404);
+  return c.json({ user: rowToProfile(updated), accountToken: token });
+});
+
 community.patch("/auth/me", async (c) => {
   const user = await resolveAccount(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);

@@ -20,6 +20,15 @@ import NowPlayingBar from "./components/NowPlayingBar";
 import QrSticker from "./components/QrSticker";
 import WelcomeTour from "./components/WelcomeTour";
 import StartGigPrompt from "./components/StartGigPrompt";
+import PrivacyFiltersPanel from "./components/PrivacyFiltersPanel";
+import OverlayDock from "./components/OverlayDock";
+import { enterOverlayMode, exitOverlayMode } from "./lib/overlayWindow";
+import {
+  loadPrivacyFilters,
+  partitionTracks,
+  savePrivacyFilters,
+  type PrivacyFilters,
+} from "./lib/privacyFilter";
 import TrackMeta from "./components/TrackMeta";
 import { useSeratoPlayback, type SeratoLinkStatus } from "./hooks/useSeratoPlayback";
 import {
@@ -159,6 +168,22 @@ export default function App() {
   const [maxPerGuest, setMaxPerGuest] = useState(3);
   const [pinWindow, setPinWindow] = useState(false);
   const [dockMode, setDockMode] = useState(loadDockMode);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (dockMode) {
+      document.body.classList.add("overlay-mode");
+      void enterOverlayMode(false).then(() => {
+        if (!cancelled) setPinWindow(true);
+      });
+    } else {
+      document.body.classList.remove("overlay-mode");
+    }
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [tier, setTier] = useState<PlanTier>(loadPlan);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [queue, setQueue] = useState<UpNextItem[]>([]);
@@ -174,7 +199,14 @@ export default function App() {
   const [spotifyCrowdSearch, setSpotifyCrowdSearch] = useState(false);
   const [requestPulse, setRequestPulse] = useState(false);
   const [startGigPromptOpen, setStartGigPromptOpen] = useState(false);
+  const [privacyFilters, setPrivacyFilters] = useState<PrivacyFilters>(() => loadPrivacyFilters());
+  const [privateHidden, setPrivateHidden] = useState(0);
   const prevPendingCountRef = useRef(0);
+
+  function updatePrivacyFilters(next: PrivacyFilters) {
+    setPrivacyFilters(next);
+    savePrivacyFilters(next);
+  }
   const requestsRef = useRef(requests);
   requestsRef.current = requests;
   const lastSyncRef = useRef(lastSync);
@@ -252,20 +284,44 @@ export default function App() {
       if (!("__TAURI_INTERNALS__" in window)) return;
       try {
         const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+        const focusWindow = () => {
+          void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+            const win = getCurrentWindow();
+            void win.show();
+            void win.unminimize();
+            void win.setFocus();
+          });
+        };
         const wantsStartGig = (url: string) => {
           const u = url.toLowerCase();
           return u.includes("start-gig") || u.includes("start_gig");
         };
-        const handleUrls = (urls: string[]) => {
-          if (urls.some(wantsStartGig)) {
-            void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
-              const win = getCurrentWindow();
-              void win.show();
-              void win.unminimize();
-              void win.setFocus();
-            });
-            setStartGigPromptOpen(true);
+        const applyHandoff = async (rawUrls: string[]) => {
+          for (const raw of rawUrls) {
+            let parsed: URL | null = null;
+            try {
+              parsed = new URL(raw);
+            } catch {
+              continue;
+            }
+            const token = parsed.searchParams.get("token")?.trim();
+            if (!token) continue;
+            saveAccountToken(token);
+            try {
+              const res = await fetchAccountMe();
+              setAccount(res.user);
+            } catch {
+              saveAccountToken(null);
+              setAccount(null);
+            }
+            return true;
           }
+          return false;
+        };
+        const handleUrls = (urls: string[]) => {
+          focusWindow();
+          void applyHandoff(urls);
+          if (urls.some(wantsStartGig)) setStartGigPromptOpen(true);
         };
         const initial = await getCurrent();
         if (initial?.length) handleUrls(initial);
@@ -521,8 +577,8 @@ export default function App() {
             ? await importRekordboxAuto()
             : await importRekordboxFromDialog()
           : mode === "auto"
-            ? await importSeratoAuto()
-            : await importSeratoFromDialog();
+            ? await importSeratoAuto(privacyFilters)
+            : await importSeratoFromDialog(privacyFilters);
 
       if (!result) {
         setMessage(
@@ -535,13 +591,23 @@ export default function App() {
         return;
       }
 
-      const localTracks = result.tracks;
+      const { publicTracks, privateTracks } = partitionTracks(result.tracks, privacyFilters);
+      const skippedCrates =
+        "skippedCrates" in result ? (result as { skippedCrates: string[] }).skippedCrates : [];
+      const hiddenTotal = privateTracks.length + skippedCrates.length;
+      setPrivateHidden(hiddenTotal);
+
+      const localTracks = publicTracks;
       const cratesRead =
         "crateFilesRead" in result ? (result as { crateFilesRead: number }).crateFilesRead : 0;
       const countLabel =
         cratesRead > 1
           ? `${localTracks.length} tracks from ${cratesRead} crates`
           : `${localTracks.length} tracks`;
+      const privateNote =
+        hiddenTotal > 0
+          ? ` · ${hiddenTotal} kept private${skippedCrates.length ? ` (${skippedCrates.length} crate${skippedCrates.length === 1 ? "" : "s"} skipped)` : ""}`
+          : "";
 
       const next = { ...gig, trackCount: localTracks.length };
       setGig(next);
@@ -560,10 +626,12 @@ export default function App() {
           setRequests(syncResult.requests);
           setServerPending(syncResult.result.pendingOnServer);
         }
-        setMessage(`Imported ${countLabel} and synced to cloud.`);
+        setMessage(`Imported ${countLabel}${privateNote} and synced to cloud.`);
       } else {
         queueLibraryIfOffline(gig.sessionId, localTracks, true);
-        setMessage(`Imported ${countLabel} locally. Queued — tap Sync when online.`);
+        setMessage(
+          `Imported ${countLabel}${privateNote} locally. Queued — tap Sync when online.`,
+        );
       }
       refreshOutbox();
     } catch (e) {
@@ -634,10 +702,41 @@ export default function App() {
     ? crowdUrlForPhone(gig.crowdUrl, gig.code, lanIpv4)
     : "";
 
-  function toggleViewMode() {
+  async function toggleViewMode() {
     const next = !dockMode;
     setDockMode(next);
     saveDockMode(next);
+    if (next) {
+      document.body.classList.add("overlay-mode");
+      await enterOverlayMode(pinWindow);
+      setPinWindow(true);
+    } else {
+      await exitOverlayMode();
+      document.body.classList.remove("overlay-mode");
+      setPinWindow(false);
+    }
+  }
+
+  if (dockMode && gig) {
+    return (
+      <OverlayDock
+        gigCode={gig.code}
+        gigDisplayName={gig.displayName}
+        pending={pending}
+        queue={queue}
+        pendingPulse={requestPulse}
+        online={online}
+        busy={busy}
+        pinned={pinWindow}
+        djSoftware={djSoftware}
+        onAccept={(id) => void handleDecision(id, "accepted")}
+        onDecline={(id) => void handleDecision(id, "declined")}
+        onPlayed={(item) => markQueuePlaying(item as UpNextItem)}
+        onSync={() => void syncNow()}
+        onTogglePin={() => void togglePinWindow()}
+        onExpand={() => void toggleViewMode()}
+      />
+    );
   }
 
   return (
@@ -674,7 +773,7 @@ export default function App() {
             <button type="button" className="btn-top" onClick={togglePinWindow}>
               {pinWindow ? "Unpin" : "Pin"}
             </button>
-            <button type="button" className="btn-top" onClick={toggleViewMode}>
+            <button type="button" className="btn-top" onClick={() => void toggleViewMode()}>
               Expand
             </button>
           </div>
@@ -690,8 +789,8 @@ export default function App() {
         )}
         {dockMode && <p className="pane-heading dock-setup-label">Setup</p>}
         {!dockMode && (
-          <button type="button" className="btn ghost" style={{ marginTop: "0.5rem" }} onClick={toggleViewMode}>
-            Side dock
+          <button type="button" className="btn ghost" style={{ marginTop: "0.5rem" }} onClick={() => void toggleViewMode()}>
+            Mini overlay
           </button>
         )}
 
@@ -946,6 +1045,11 @@ export default function App() {
             <button className="btn ghost" onClick={() => importLibrary("file")} disabled={busy}>
               {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates folder…"}
             </button>
+            <PrivacyFiltersPanel
+              filters={privacyFilters}
+              onChange={updatePrivacyFilters}
+              privateCount={privateHidden}
+            />
             <button
               className="btn ghost"
               onClick={() => {
