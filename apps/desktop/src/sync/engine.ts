@@ -55,7 +55,7 @@ export async function runSync(
   const decisions = getDecisions(sessionId);
   for (const d of decisions) {
     try {
-      await updateRequest(sessionId, djToken, d.requestId, d.status, plan);
+      await updateRequest(sessionId, djToken, d.requestId, d.status, plan, d.declineReason);
       clearDecision(sessionId, d.requestId);
       result.pushedDecisions++;
     } catch {
@@ -100,8 +100,9 @@ export function queueDecisionIfOffline(
   requestId: string,
   status: "accepted" | "declined",
   online: boolean,
+  declineReason?: string,
 ) {
-  if (!online) queueDecision({ sessionId, requestId, status });
+  if (!online) queueDecision({ sessionId, requestId, status, declineReason });
 }
 
 export function localSuggestionsOffline(): TransitionSuggestion[] {

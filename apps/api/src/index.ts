@@ -219,6 +219,7 @@ type RequestRow = {
   bpm?: number | null;
   key?: string | null;
   album_art_url?: string | null;
+  decline_reason?: string | null;
 };
 
 function clampLimit(n: number, min: number, max: number) {
@@ -262,6 +263,7 @@ function rowToRequest(row: RequestRow): CrowdRequest {
     key: row.key ?? libraryMeta.key ?? undefined,
     albumArtUrl: row.album_art_url ?? undefined,
     playedEarlierTonight: isPlayedEarlierTonight(sessionId, row.title, row.artist),
+    declineReason: (row.decline_reason as CrowdRequest["declineReason"]) ?? undefined,
   };
 }
 
@@ -895,6 +897,33 @@ app.get("/sessions/:sessionId/sync-status", (c) => {
   return c.json(status);
 });
 
+/**
+ * Public status lookup for a single request — used by the crowd app to follow
+ * what happened to the song they just submitted, including the decline reason
+ * if the DJ picked one. Intentionally no auth: we only return non-sensitive
+ * fields (status, decline_reason) and clamp to the same gig the URL is for.
+ */
+app.get("/sessions/:code/requests/:requestId/status", (c) => {
+  const code = c.req.param("code").trim().toUpperCase();
+  const session = db
+    .prepare(`SELECT id FROM sessions WHERE code = ?`)
+    .get(code) as { id: string } | undefined;
+  if (!session) return c.json({ error: "Session not found" }, 404);
+  const requestId = c.req.param("requestId");
+  const row = db
+    .prepare(
+      `SELECT status, decline_reason FROM requests WHERE id = ? AND session_id = ?`,
+    )
+    .get(requestId, session.id) as
+    | { status: string; decline_reason: string | null }
+    | undefined;
+  if (!row) return c.json({ error: "Request not found" }, 404);
+  return c.json({
+    status: row.status as CrowdRequest["status"],
+    declineReason: (row.decline_reason as CrowdRequest["declineReason"]) ?? undefined,
+  });
+});
+
 app.get("/sessions/:sessionId/requests", (c) => {
   const sessionId = c.req.param("sessionId");
   if (!requireDj(c, sessionId)) return c.json({ error: "Unauthorized" }, 401);
@@ -917,17 +946,33 @@ app.patch("/sessions/:sessionId/requests/:requestId", async (c) => {
   const sessionId = c.req.param("sessionId");
   if (!requireDj(c, sessionId)) return c.json({ error: "Unauthorized" }, 401);
 
-  const body = (await c.req.json()) as { status?: string };
+  const body = (await c.req.json()) as { status?: string; declineReason?: string };
   if (!body.status || !["accepted", "declined"].includes(body.status)) {
     return c.json({ error: "status must be accepted or declined" }, 400);
   }
 
+  const allowedReasons = new Set([
+    "vibe",
+    "genre",
+    "tempo",
+    "explicit",
+    "duplicate",
+    "already_played",
+    "not_now",
+    "unavailable",
+    "other",
+  ]);
+  const declineReason =
+    body.status === "declined" && body.declineReason && allowedReasons.has(body.declineReason)
+      ? body.declineReason
+      : null;
+
   const now = new Date().toISOString();
   const result = db
     .prepare(
-      `UPDATE requests SET status = ?, updated_at = ? WHERE id = ? AND session_id = ?`,
+      `UPDATE requests SET status = ?, decline_reason = ?, updated_at = ? WHERE id = ? AND session_id = ?`,
     )
-    .run(body.status, now, c.req.param("requestId"), sessionId);
+    .run(body.status, declineReason, now, c.req.param("requestId"), sessionId);
 
   if (result.changes === 0) return c.json({ error: "Request not found" }, 404);
 

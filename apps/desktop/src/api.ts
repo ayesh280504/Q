@@ -69,11 +69,17 @@ export function updateSessionSettings(
  * The DJ's local copy is untouched.
  */
 export function syncLibrary(sessionId: string, token: string, tracks: unknown[]) {
-  const cleaned = (tracks as TrackRecord[]).map((t) => ({
-    ...t,
-    title: sanitizeTrackTitle(t.title) || t.title,
-    artist: sanitizeTrackArtist(t.artist) || t.artist,
-  }));
+  // Strip `localPath` (filesystem path on the DJ's laptop) before upload — it
+  // stays local for the auto-crate writer and the server doesn't need it.
+  const cleaned = (tracks as TrackRecord[]).map((t) => {
+    const { localPath: _omitLocalPath, ...rest } = t;
+    void _omitLocalPath;
+    return {
+      ...rest,
+      title: sanitizeTrackTitle(t.title) || t.title,
+      artist: sanitizeTrackArtist(t.artist) || t.artist,
+    };
+  });
   return api<{ synced: number }>(`/sessions/${sessionId}/library`, {
     method: "POST",
     token,
@@ -108,9 +114,12 @@ export function updateRequest(
   requestId: string,
   status: "accepted" | "declined",
   plan: PlanTier = "free",
+  declineReason?: string,
 ) {
+  const payload: Record<string, string> = { status };
+  if (status === "declined" && declineReason) payload.declineReason = declineReason;
   return api<{ request: CrowdRequest; suggestions: TransitionSuggestion[] }>(
     `/sessions/${sessionId}/requests/${requestId}`,
-    { method: "PATCH", token, plan, body: JSON.stringify({ status }) },
+    { method: "PATCH", token, plan, body: JSON.stringify(payload) },
   );
 }

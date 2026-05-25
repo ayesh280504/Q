@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CrowdRequest,
   CreateSessionResponse,
+  DeclineReason,
   DjProfile,
   PlanTier,
+  TrackRecord,
   TransitionSuggestion,
 } from "@q/shared";
 import {
@@ -22,6 +24,7 @@ import WelcomeTour from "./components/WelcomeTour";
 import StartGigPrompt from "./components/StartGigPrompt";
 import PrivacyFiltersPanel from "./components/PrivacyFiltersPanel";
 import OverlayDock from "./components/OverlayDock";
+import DeclineMenu from "./components/DeclineMenu";
 import {
   enterOverlayMode,
   exitOverlayMode,
@@ -47,15 +50,16 @@ import {
   savePrivacyFilters,
   type PrivacyFilters,
 } from "./lib/privacyFilter";
+import {
+  addToQueueCrate,
+  buildImportIndex,
+  resetQueueCrate,
+} from "./lib/queueCrate";
 import TrackMeta from "./components/TrackMeta";
 import { useSeratoPlayback, type SeratoLinkStatus } from "./hooks/useSeratoPlayback";
-import {
-  fetchAccountMe,
-  getAccountToken,
-  loginAccount,
-  registerAccount,
-  saveAccountToken,
-} from "./lib/account";
+import { useProlinkPlayback, type ProlinkStatus } from "./hooks/useProlinkPlayback";
+import { useQueueAutoAdvance } from "./hooks/useQueueAutoAdvance";
+import { fetchAccountMe, getAccountToken, saveAccountToken } from "./lib/account";
 import {
   crowdUrlForPhone,
   crowdUrlNeedsLanHint,
@@ -80,6 +84,23 @@ const STORAGE_KEY = "q-gig";
 const DJ_NAME_KEY = "q-dj-display-name";
 const VIEW_MODE_KEY = "q-view-mode";
 const PLAN_KEY = "q-plan-tier";
+const AUTO_ADVANCE_KEY = "q-rekordbox-auto-advance";
+
+function loadAutoAdvance(): boolean {
+  try {
+    return localStorage.getItem(AUTO_ADVANCE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveAutoAdvance(on: boolean) {
+  try {
+    localStorage.setItem(AUTO_ADVANCE_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 const WEB_URL =
   import.meta.env.VITE_Q_WEB_URL?.replace(/\/$/, "") || "http://localhost:5174";
 type DjSoftware = "rekordbox" | "serato";
@@ -210,11 +231,10 @@ export default function App() {
   const [proHints, setProHints] = useState<TransitionSuggestion[]>([]);
   const [playedHistory, setPlayedHistory] = useState<PlayedTrack[]>([]);
   const [seratoLinkStatus, setSeratoLinkStatus] = useState<SeratoLinkStatus>("idle");
+  const [prolinkStatus, setProlinkStatus] = useState<ProlinkStatus>("idle");
+  const [prolinkDetail, setProlinkDetail] = useState<string | undefined>(undefined);
+  const [autoAdvance, setAutoAdvance] = useState<boolean>(loadAutoAdvance);
   const [account, setAccount] = useState<DjProfile | null>(null);
-  const [accountEmail, setAccountEmail] = useState("");
-  const [accountPassword, setAccountPassword] = useState("");
-  const [accountHandle, setAccountHandle] = useState("");
-  const [accountMode, setAccountMode] = useState<"signin" | "register">("signin");
   const [lanIpv4, setLanIpv4] = useState<string | null>(null);
   const [spotifyCrowdSearch, setSpotifyCrowdSearch] = useState(false);
   const [requestPulse, setRequestPulse] = useState(false);
@@ -224,6 +244,23 @@ export default function App() {
   const [hiddenEntries, setHiddenEntries] = useState<HiddenTrackEntry[]>([]);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
+  /**
+   * Snapshot of the most recent import (public + private tracks) so the
+   * Hidden Tracks inspector's "Allow once" can re-build and re-sync the
+   * library without forcing the DJ to re-import from disk.
+   */
+  const lastImportRef = useRef<{
+    publicTracks: TrackRecord[];
+    privateTracks: TrackRecord[];
+  } | null>(null);
+  /**
+   * Lookup table for the "Q Requests" auto-crate writer — maps `externalId`
+   * (from the DJ's library import) → full track record (with `localPath`).
+   * Rebuilt on every importLibrary call and consulted on every accepted
+   * request so we can append the song's file path to Q Requests.m3u8 /
+   * Q Requests.crate without ever exposing the path to the server.
+   */
+  const importIndexRef = useRef<Map<string, TrackRecord>>(new Map());
   const [seratoSelection, setSeratoSelection] = useState<CrateSelection>(() =>
     loadSeratoSelection(),
   );
@@ -263,12 +300,57 @@ export default function App() {
     saveRekordboxSelection(next);
   }
 
-  function allowOnce(externalId: string) {
-    setAllowedOnce((prev) => {
-      const next = new Set(prev);
-      next.add(externalId);
-      return next;
-    });
+  async function allowOnce(externalId: string) {
+    if (!gig) return;
+    const snap = lastImportRef.current;
+    if (!snap) {
+      // No import snapshot yet (e.g. allowOnce clicked after a reload).
+      // Best we can do is mark it for the next import.
+      setAllowedOnce((prev) => {
+        const next = new Set(prev);
+        next.add(externalId);
+        return next;
+      });
+      setMessage(
+        "Marked allow-once — run Auto-import once for it to land in the crowd's search.",
+      );
+      return;
+    }
+
+    const nextAllowed = new Set(allowedOnce);
+    nextAllowed.add(externalId);
+    setAllowedOnce(nextAllowed);
+
+    // Rebuild the library payload using the saved snapshot + updated allow-list.
+    const allowedTracks = snap.privateTracks.filter((t) => nextAllowed.has(t.externalId));
+    const stillPrivate = snap.privateTracks.filter((t) => !nextAllowed.has(t.externalId));
+    const localTracks = [...snap.publicTracks, ...allowedTracks];
+
+    setHiddenEntries((prev) => prev.filter((e) => e.track.externalId !== externalId));
+    setPrivateHidden(stillPrivate.length);
+    const next = { ...gig, trackCount: localTracks.length };
+    setGig(next);
+    saveGig(next);
+
+    if (online) {
+      setBusy(true);
+      try {
+        await syncLibrary(gig.sessionId, gig.djToken, localTracks);
+        setMessage(`Allowed for this gig — added to the crowd's search instantly.`);
+      } catch (e) {
+        setMessage(
+          e instanceof Error
+            ? `Allow-once couldn't sync: ${e.message}. It'll push on next Sync.`
+            : "Allow-once couldn't sync — queued for next sync.",
+        );
+        queueLibraryIfOffline(gig.sessionId, localTracks, false);
+      } finally {
+        setBusy(false);
+      }
+    } else {
+      queueLibraryIfOffline(gig.sessionId, localTracks, false);
+      setMessage("Allow-once queued — it'll sync when you're back online.");
+    }
   }
   const requestsRef = useRef(requests);
   requestsRef.current = requests;
@@ -434,6 +516,7 @@ export default function App() {
   }, []);
 
   const seratoOn = Boolean(gig) && djSoftware === "serato";
+  const rekordboxOn = Boolean(gig) && djSoftware === "rekordbox";
 
   useSeratoPlayback({
     enabled: seratoOn,
@@ -441,6 +524,47 @@ export default function App() {
     onHistory: setPlayedHistory,
     onLinkStatus: setSeratoLinkStatus,
   });
+
+  useProlinkPlayback({
+    enabled: rekordboxOn,
+    importIndex: importIndexRef.current,
+    onNowPlaying: setNowPlaying,
+    onStatus: (status, detail) => {
+      setProlinkStatus(status);
+      setProlinkDetail(detail);
+    },
+  });
+
+  // Rekordbox laptop-only fallback: when no Pro DJ Link gear is broadcasting
+  // and the DJ enabled auto-advance in settings, run a track-length timer to
+  // promote queue items.
+  const autoAdvanceActive = rekordboxOn && autoAdvance && prolinkStatus !== "connected";
+
+  useQueueAutoAdvance({
+    enabled: autoAdvanceActive,
+    nowPlaying,
+    queue,
+    onAdvance: (next) => {
+      markQueuePlaying(next);
+    },
+    onDeckIdle: () => {
+      // Track ran its course with nothing queued behind it — clear the deck
+      // so the next accepted request gets auto-promoted immediately.
+      setNowPlaying(null);
+    },
+  });
+
+  // When auto-advance is active and the deck is idle (no current track) but
+  // there's something queued, kick playback off automatically. This handles
+  // the very first accept of the night and any time the queue refills after
+  // running dry.
+  useEffect(() => {
+    if (!autoAdvanceActive) return;
+    if (nowPlaying || queue.length === 0) return;
+    markQueuePlaying(queue[0]);
+    // markQueuePlaying is stable; intentionally not in deps to avoid loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAdvanceActive, nowPlaying, queue]);
 
   useEffect(() => {
     setQueue((prev) => pruneQueueAgainstNowPlaying(nowPlaying, prev));
@@ -474,12 +598,19 @@ export default function App() {
     history: PlayedTrack[],
     np: NowPlaying | null,
   ): UpNextItem {
+    // Look up the imported library entry so the queue item knows the track
+    // length — the Rekordbox auto-advance timer keys off this.
+    const local =
+      (request.matchedTrackId && importIndexRef.current.get(request.matchedTrackId)) ||
+      (request.externalId && importIndexRef.current.get(request.externalId)) ||
+      undefined;
     return {
       requestId: request.id,
       title: request.title,
       artist: request.artist,
       bpm: request.bpm ?? np?.bpm,
       key: request.key ?? np?.key,
+      durationSec: local?.durationSec,
       playedEarlierTonight:
         request.playedEarlierTonight ??
         wasPlayedEarlierTonight(request.title, request.artist, history, np),
@@ -507,6 +638,8 @@ export default function App() {
       artist: item.artist,
       bpm: item.bpm,
       key: item.key,
+      durationSec: item.durationSec,
+      playedAt: Date.now(),
     });
     setPlayedHistory((prev) => {
       const key = `${item.title}\0${item.artist}`.toLowerCase();
@@ -579,6 +712,9 @@ export default function App() {
       // Reset per-gig "Allow once" exceptions — surprise-drop mixes should
       // re-engage their privacy filter every time the DJ starts a new gig.
       setAllowedOnce(new Set());
+      // Fresh gig → fresh "Q Requests" crate. Old paths from last night's
+      // gig shouldn't bleed into tonight's auto-built crate.
+      resetQueueCrate(res.session.id);
       const profileNote = res.crowdProfileUrl
         ? ` Permanent crowd link: ${res.crowdProfileUrl}`
         : res.profileUrl
@@ -687,6 +823,13 @@ export default function App() {
       const privateTracks = rawPrivate.filter((t) => !allowedOnce.has(t.externalId));
       const localTracks = [...publicTracks, ...allowedTracks];
 
+      // Snapshot for the Hidden Tracks inspector's instant "Allow once" flow:
+      // we rebuild the uploaded list from this without re-reading from disk.
+      lastImportRef.current = { publicTracks, privateTracks: rawPrivate };
+      // Index every imported track (public + private) so the auto-crate writer
+      // can look up local file paths the moment a request is accepted.
+      importIndexRef.current = buildImportIndex([...publicTracks, ...rawPrivate]);
+
       // Build the hidden-tracks inspector entries.
       const entries: HiddenTrackEntry[] = [];
       for (const t of privateTracks) {
@@ -764,12 +907,20 @@ export default function App() {
     }
   }
 
-  async function handleDecision(requestId: string, status: "accepted" | "declined") {
+  async function handleDecision(
+    requestId: string,
+    status: "accepted" | "declined",
+    declineReason?: DeclineReason,
+  ) {
     if (!gig) return;
     setBusy(true);
 
     setRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status } : r)),
+      prev.map((r) =>
+        r.id === requestId
+          ? { ...r, status, declineReason: status === "declined" ? declineReason : undefined }
+          : r,
+      ),
     );
 
     try {
@@ -780,10 +931,12 @@ export default function App() {
           requestId,
           status,
           tierRef.current,
+          declineReason,
         );
         setRequests((prev) => prev.map((r) => (r.id === requestId ? res.request : r)));
         if (status === "accepted") {
           addToQueue(res.request);
+          await writeAcceptedToCrate(res.request);
           setProHints(
             tierRef.current === "pro" ? res.suggestions.filter((s) => s.pro) : [],
           );
@@ -792,11 +945,14 @@ export default function App() {
           setProHints([]);
         }
       } else {
-        queueDecisionIfOffline(gig.sessionId, requestId, status, false);
+        queueDecisionIfOffline(gig.sessionId, requestId, status, false, declineReason);
         refreshOutbox();
         if (status === "accepted") {
           const req = requestsRef.current.find((r) => r.id === requestId);
-          if (req) addToQueue({ ...req, status: "accepted" });
+          if (req) {
+            addToQueue({ ...req, status: "accepted" });
+            await writeAcceptedToCrate(req);
+          }
           setProHints([]);
         } else {
           removeFromQueue(requestId);
@@ -805,17 +961,44 @@ export default function App() {
         setMessage("Saved offline — will send when you sync.");
       }
     } catch {
-      queueDecision({ sessionId: gig.sessionId, requestId, status });
+      queueDecision({ sessionId: gig.sessionId, requestId, status, declineReason });
       refreshOutbox();
       if (status === "accepted") {
         const req = requestsRef.current.find((r) => r.id === requestId);
-        if (req) addToQueue({ ...req, status: "accepted" });
+        if (req) {
+          addToQueue({ ...req, status: "accepted" });
+          await writeAcceptedToCrate(req);
+        }
       } else {
         removeFromQueue(requestId);
       }
       setMessage("Queued — tap Sync now when you have signal.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Appends an accepted request's local file path to the "Q Requests" m3u8
+   * playlist (and, on Serato, the auto-loaded .crate). Silent no-op for
+   * tracks we can't locate on disk (e.g. crowd searched via Spotify and the
+   * DJ doesn't own the file).
+   */
+  async function writeAcceptedToCrate(req: CrowdRequest) {
+    if (!gig) return;
+    const externalId = req.matchedTrackId || req.externalId;
+    if (!externalId) return;
+    try {
+      const result = await addToQueueCrate({
+        sessionId: gig.sessionId,
+        djSoftware,
+        track: { externalId, title: req.title, artist: req.artist },
+        importIndex: importIndexRef.current,
+      });
+      if (result?.message) setMessage(result.message);
+    } catch {
+      // Non-fatal — the request was still accepted, the booth just couldn't
+      // update the on-disk playlist (e.g. permissions or no Music folder).
     }
   }
 
@@ -873,7 +1056,7 @@ export default function App() {
           pinned={pinWindow}
           djSoftware={djSoftware}
           onAccept={(id) => void handleDecision(id, "accepted")}
-          onDecline={(id) => void handleDecision(id, "declined")}
+          onDecline={(id, reason) => void handleDecision(id, "declined", reason)}
           onPlayed={(item) => markQueuePlaying(item as UpNextItem)}
           onSync={() => void syncNow()}
           onTogglePin={() => void togglePinWindow()}
@@ -1024,103 +1207,38 @@ export default function App() {
                 </p>
               ) : (
                 <>
-                  <div className="account-tabs" style={{ display: "flex", gap: "0.35rem" }}>
-                    <button
-                      type="button"
-                      className={`btn ghost ${accountMode === "signin" ? "active" : ""}`}
-                      style={{ flex: 1 }}
-                      onClick={() => setAccountMode("signin")}
-                    >
-                      Sign in
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn ghost ${accountMode === "register" ? "active" : ""}`}
-                      style={{ flex: 1 }}
-                      onClick={() => setAccountMode("register")}
-                    >
-                      Register
-                    </button>
-                  </div>
-                  {accountMode === "register" && (
-                    <>
-                      <input
-                        className="field-input"
-                        placeholder="Username (e.g. dj_ayesh)"
-                        value={accountHandle}
-                        onChange={(e) => setAccountHandle(e.target.value.toLowerCase())}
-                        style={{ marginTop: "0.35rem" }}
-                      />
-                    </>
-                  )}
-                  <input
-                    className="field-input"
-                    type="email"
-                    placeholder="Email"
-                    value={accountEmail}
-                    onChange={(e) => setAccountEmail(e.target.value)}
-                    style={{ marginTop: "0.35rem" }}
-                  />
-                  <input
-                    className="field-input"
-                    type="password"
-                    placeholder="Password"
-                    value={accountPassword}
-                    onChange={(e) => setAccountPassword(e.target.value)}
-                    style={{ marginTop: "0.35rem" }}
-                  />
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    style={{ marginTop: "0.35rem", width: "100%" }}
-                    disabled={busy}
-                    onClick={async () => {
-                      const email = accountEmail.trim();
-                      const password = accountPassword;
-                      const handle = accountHandle.trim();
-                      if (!email || !password) {
-                        setMessage("Enter your email and password.");
-                        return;
-                      }
-                      if (accountMode === "register" && !handle) {
-                        setMessage("Choose a handle (e.g. @djyesh) to register.");
-                        return;
-                      }
-                      setBusy(true);
-                      setMessage(
-                        accountMode === "register"
-                          ? "Creating account…"
-                          : "Signing in…",
-                      );
-                      try {
-                        const res =
-                          accountMode === "register"
-                            ? await registerAccount({
-                                email,
-                                password,
-                                handle,
-                                displayName: handle,
-                              })
-                            : await loginAccount(email, password);
-                        saveAccountToken(res.accountToken);
-                        setAccount(res.user);
-                        setAccountPassword("");
-                        setMessage(`Signed in as @${res.user.handle}`);
-                      } catch (e) {
-                        setMessage(
-                          e instanceof Error
-                            ? `Sign-in failed: ${e.message}`
-                            : "Sign-in failed — check your internet and try again.",
-                        );
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
+                  <p
+                    className="muted"
+                    style={{ fontSize: "0.78rem", margin: "0.1rem 0 0.5rem" }}
                   >
-                    {accountMode === "register" ? "Create account" : "Sign in"}
-                  </button>
-                  <p className="muted" style={{ fontSize: "0.72rem", marginTop: "0.35rem" }}>
-                    Or use {WEB_URL}/register in your browser.
+                    Sign in once on the website — we&apos;ll bring you right back to the
+                    booth app when you&apos;re done.
+                  </p>
+                  <a
+                    href={`${WEB_URL}/login?returnTo=desktop`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn primary"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "center",
+                      marginTop: "0.25rem",
+                    }}
+                    onClick={() =>
+                      setMessage(
+                        "Opening browser… finish on the website and the booth will sign you in automatically.",
+                      )
+                    }
+                  >
+                    Sign in / create account
+                  </a>
+                  <p
+                    className="muted"
+                    style={{ fontSize: "0.7rem", marginTop: "0.5rem", textAlign: "center" }}
+                  >
+                    Already signed in elsewhere? Click <strong>Sign in</strong> — if you have a
+                    web session it&apos;ll bounce back here instantly without asking again.
                   </p>
                 </>
               )}
@@ -1229,6 +1347,46 @@ export default function App() {
             <button className="btn ghost" onClick={() => importLibrary("file")} disabled={busy}>
               {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates folder…"}
             </button>
+            {djSoftware === "rekordbox" && (
+              <>
+                <h4 className="settings-section-label">Live tracking</h4>
+                <div className="prolink-status">
+                  <span
+                    className={`prolink-dot prolink-dot-${prolinkStatus}`}
+                    aria-hidden
+                  />
+                  <span className="prolink-label">
+                    {prolinkStatus === "connected"
+                      ? "Pro DJ Link: connected"
+                      : prolinkStatus === "listening"
+                        ? "Pro DJ Link: listening…"
+                        : prolinkStatus === "stopped"
+                          ? "Pro DJ Link: off"
+                          : "Pro DJ Link: idle"}
+                  </span>
+                </div>
+                {prolinkDetail && (
+                  <p className="muted prolink-detail">{prolinkDetail}</p>
+                )}
+                <label className="auto-advance-toggle">
+                  <input
+                    type="checkbox"
+                    checked={autoAdvance}
+                    onChange={(e) => {
+                      setAutoAdvance(e.target.checked);
+                      saveAutoAdvance(e.target.checked);
+                    }}
+                  />
+                  <span>
+                    Auto-advance queue by track length
+                    <small className="muted">
+                      Fallback when no CDJ/DDJ-1000 broadcasts. Auto-promotes the next
+                      queued song after the current one's duration elapses.
+                    </small>
+                  </span>
+                </label>
+              </>
+            )}
             <h4 className="settings-section-label">Audience visibility</h4>
             <PrivacyFiltersPanel
               filters={privacyFilters}
@@ -1314,6 +1472,8 @@ export default function App() {
               nowPlaying={nowPlaying}
               seratoActive={Boolean(gig) && djSoftware === "serato"}
               seratoLinkStatus={seratoLinkStatus}
+              prolinkStatus={prolinkStatus}
+              autoAdvanceActive={autoAdvanceActive}
               djSoftware={djSoftware}
             />
             <div className="pane-header">
@@ -1417,14 +1577,12 @@ export default function App() {
                   >
                     Accept
                   </button>
-                  <button
-                    type="button"
-                    className="btn bad"
+                  <DeclineMenu
+                    buttonClassName="btn bad"
+                    buttonContent="Decline"
                     disabled={busy}
-                    onClick={() => handleDecision(r.id, "declined")}
-                  >
-                    Decline
-                  </button>
+                    onDecline={(reason) => handleDecision(r.id, "declined", reason)}
+                  />
                 </div>
               </li>
             ))}

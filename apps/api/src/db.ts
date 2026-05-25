@@ -76,6 +76,11 @@ ensureColumn("requests", "bpm", `ALTER TABLE requests ADD COLUMN bpm REAL`);
 ensureColumn("requests", "key", `ALTER TABLE requests ADD COLUMN key TEXT`);
 ensureColumn("requests", "album_art_url", `ALTER TABLE requests ADD COLUMN album_art_url TEXT`);
 ensureColumn(
+  "requests",
+  "decline_reason",
+  `ALTER TABLE requests ADD COLUMN decline_reason TEXT`,
+);
+ensureColumn(
   "sessions",
   "streaming_search",
   `ALTER TABLE sessions ADD COLUMN streaming_search INTEGER NOT NULL DEFAULT 1`,

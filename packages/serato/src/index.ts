@@ -56,7 +56,8 @@ function fieldIdFromTag(tag: string): number | null {
 
 /** History session fields (see Serato History .session format). */
 const HISTORY_STRING_FIELDS = new Set([2, 3, 6, 7, 8, 9, 0x11]);
-const HISTORY_UINT_FIELDS = new Set([5, 0x2d]);
+/** Field 4 holds BPM (sometimes scaled ×100), field 5 the playedAt epoch. */
+const HISTORY_UINT_FIELDS = new Set([4, 5, 0x2d]);
 
 function decodeValue(data: Uint8Array, tag: string): SeratoNode["value"] {
   const fieldId = fieldIdFromTag(tag);
@@ -114,12 +115,20 @@ function extractFromOtrk(nodes: SeratoNode[]): TrackRecord[] {
       let path: string | undefined;
       let title: string | undefined;
       let artist: string | undefined;
+      let album: string | undefined;
+      let bpmStr: string | undefined;
+      let keyStr: string | undefined;
+      let lengthStr: string | undefined;
 
       for (const child of node.value) {
         if (typeof child.value !== "string") continue;
         if (child.tag === "ptrk" || child.tag === "ptah") path = child.value;
         if (child.tag === "tsng") title = child.value;
         if (child.tag === "tart" || child.tag === "tarj") artist = child.value;
+        if (child.tag === "talb") album = child.value;
+        if (child.tag === "tbpm") bpmStr = child.value;
+        if (child.tag === "tkey") keyStr = child.value;
+        if (child.tag === "tlen") lengthStr = child.value;
       }
 
       const cleanPath = path?.replace(/^\w+:\/\/localhost\/?/i, "").replace(/^\w+:\/\//, "");
@@ -129,10 +138,20 @@ function extractFromOtrk(nodes: SeratoNode[]): TrackRecord[] {
       const finalArtist = artist?.trim() || fromPath?.artist || "Unknown Artist";
       const externalId = cleanPath || `${finalArtist}::${finalTitle}`;
 
+      const bpmNum = bpmStr ? Number.parseFloat(bpmStr) : NaN;
+      const bpm = Number.isFinite(bpmNum) && bpmNum >= 40 && bpmNum <= 250 ? Math.round(bpmNum) : undefined;
+      const lenNum = lengthStr ? Number.parseFloat(lengthStr) : NaN;
+      const durationSec = Number.isFinite(lenNum) && lenNum > 0 ? Math.round(lenNum) : undefined;
+
       out.push({
         externalId,
         title: finalTitle,
         artist: finalArtist,
+        album: album?.trim() || undefined,
+        bpm,
+        key: keyStr?.trim() || undefined,
+        durationSec,
+        localPath: cleanPath,
       });
     } else if (Array.isArray(node.value)) {
       out.push(...extractFromOtrk(node.value));

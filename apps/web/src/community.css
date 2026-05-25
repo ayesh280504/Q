@@ -148,6 +148,23 @@
   max-width: 400px;
 }
 
+.auth-from-desktop-banner {
+  margin: 1rem 0 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: rgba(124, 58, 237, 0.14);
+  border: 1px solid rgba(124, 58, 237, 0.45);
+  color: #ede9fe;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.auth-from-desktop-banner strong {
+  color: #f5f3ff;
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
 .auth-form label {
   display: block;
   margin-bottom: 1rem;

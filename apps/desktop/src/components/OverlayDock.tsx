@@ -1,4 +1,5 @@
-import type { CrowdRequest } from "@q/shared";
+import type { CrowdRequest, DeclineReason } from "@q/shared";
+import DeclineMenu from "./DeclineMenu";
 import QLogo from "./QLogo";
 import TrackMeta from "./TrackMeta";
 
@@ -30,7 +31,7 @@ interface OverlayDockProps {
   pinned: boolean;
   djSoftware: "rekordbox" | "serato";
   onAccept: (id: string) => void;
-  onDecline: (id: string) => void;
+  onDecline: (id: string, reason?: DeclineReason) => void;
   onPlayed: (item: OverlayDockQueueItem) => void;
   onSync: () => void;
   onTogglePin: () => void;
@@ -187,14 +188,11 @@ export default function OverlayDock({
                   >
                     ✓
                   </button>
-                  <button
-                    type="button"
-                    className="overlay-btn overlay-btn-bad"
+                  <DeclineMenu
+                    buttonClassName="overlay-btn overlay-btn-bad"
                     disabled={busy}
-                    onClick={() => onDecline(r.id)}
-                  >
-                    ✕
-                  </button>
+                    onDecline={(reason) => onDecline(r.id, reason)}
+                  />
                 </div>
               </li>
             ))}

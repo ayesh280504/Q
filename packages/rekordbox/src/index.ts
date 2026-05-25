@@ -118,7 +118,7 @@ export function parseRekordboxXml(xml: string, sourcePath: string): RekordboxPar
     if (!title) continue;
 
     const externalId = t["@_TrackID"]?.trim() || `${title}-${t["@_Artist"] ?? ""}`;
-    decodeLocation(t["@_Location"]);
+    const localPath = decodeLocation(t["@_Location"]);
 
     tracks.push({
       externalId,
@@ -128,6 +128,7 @@ export function parseRekordboxXml(xml: string, sourcePath: string): RekordboxPar
       bpm: parseBpm(t["@_AverageBpm"]),
       key: t["@_Tonality"]?.trim(),
       durationSec: parseDuration(t["@_TotalTime"]),
+      localPath: localPath?.trim() || undefined,
     });
   }
 

@@ -41,6 +41,8 @@ export interface NowPlaying {
   bpm?: number;
   key?: string;
   playedAt?: number;
+  /** Track length in seconds — used by the auto-advance timer for Rekordbox. */
+  durationSec?: number;
 }
 
 export interface UpNextItem {
@@ -50,6 +52,8 @@ export interface UpNextItem {
   bpm?: number;
   key?: string;
   playedEarlierTonight?: boolean;
+  /** Carried through from the imported library so auto-advance can time it. */
+  durationSec?: number;
 }
 
 export interface PlayedTrack {

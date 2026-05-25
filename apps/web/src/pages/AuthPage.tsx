@@ -1,11 +1,16 @@
-import { FormEvent, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import CommunityNav from "../components/CommunityNav";
 import { supabaseConfigured } from "../context/AuthContext";
 import { savePendingSignup } from "../lib/authPending";
 import { ensureQProfile } from "../lib/ensureQProfile";
 import { login, register, saveAccountToken } from "../lib/accountApi";
 import { supabase } from "../lib/supabase";
+import {
+  consumeReturnToDesktop,
+  hasReturnToDesktop,
+  markReturnToDesktop,
+} from "../lib/returnToDesktop";
 
 const googleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE === "true";
 import "../community.css";
@@ -14,6 +19,7 @@ export default function AuthPage() {
   const location = useLocation();
   const mode = location.pathname === "/register" ? "register" : "login";
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -22,11 +28,37 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
   const loginMessage = (location.state as { message?: string } | null)?.message;
 
+  // Remember the "I came from the booth desktop app" intent across the entire
+  // flow so we still bounce back even after Supabase email verification or
+  // OAuth redirects.
+  useEffect(() => {
+    if (searchParams.get("returnTo") === "desktop") markReturnToDesktop();
+  }, [searchParams]);
+  const returnToDesktop = hasReturnToDesktop();
+
+  // If the user already has a Supabase session and asked us to bounce back,
+  // do it immediately — no reason to make them re-enter a password.
+  useEffect(() => {
+    if (!returnToDesktop) return;
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase.auth.getSession().then(async ({ data }) => {
+      if (cancelled || !data.session) return;
+      const result = await ensureQProfile(data.session);
+      if (cancelled) return;
+      if (result.ok) await consumeReturnToDesktop();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [returnToDesktop]);
+
   async function afterSupabaseSession() {
     if (!supabase) return;
     const { data } = await supabase.auth.getSession();
     const result = await ensureQProfile(data.session);
     if (result.ok) {
+      if (await consumeReturnToDesktop()) return;
       navigate(result.showTour ? "/studio?onboard=1" : "/studio", { replace: true });
     } else if (result.reason === "sync-failed") {
       setError(result.message ?? "Could not save username");
@@ -99,6 +131,7 @@ export default function AuthPage() {
           ? await register({ email, password, handle })
           : await login(email, password);
       saveAccountToken(res.accountToken);
+      if (await consumeReturnToDesktop({ handle: res.user.handle })) return;
       navigate("/studio");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -117,6 +150,16 @@ export default function AuthPage() {
             ? "Your username is your public @handle, profile URL (/dj/username), and permanent booth QR."
             : "Access your mix locker and studio."}
         </p>
+
+        {returnToDesktop && (
+          <div className="auth-from-desktop-banner">
+            <strong>Signing in for the Q booth app.</strong>
+            <span>
+              {" "}When you finish, we&apos;ll bounce you back to the desktop app so you stay
+              logged in there.
+            </span>
+          </div>
+        )}
 
         {!supabaseConfigured && (
           <p className="error small">

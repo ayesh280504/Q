@@ -228,6 +228,35 @@ input {
   color: #bbf7d0;
 }
 
+.toast-declined {
+  position: relative;
+  background: rgba(127, 29, 29, 0.6);
+  color: #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  padding-right: 2.4rem;
+}
+
+.toast-declined em {
+  font-style: normal;
+  color: #fff5f5;
+}
+
+.toast-dismiss {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.toast-dismiss:hover {
+  opacity: 1;
+}
+
 .error {
   color: #fca5a5;
   margin-top: 0.5rem;

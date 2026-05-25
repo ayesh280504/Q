@@ -15,8 +15,8 @@ export interface OverlayRestore {
   decorations: boolean;
 }
 
-const OVERLAY_WIDTH = 380;
-const OVERLAY_HEIGHT = 540;
+const OVERLAY_WIDTH = 360;
+const OVERLAY_HEIGHT = 420;
 const SCREEN_MARGIN = 16;
 const RESTORE_KEY = "q-overlay-restore-v1";
 

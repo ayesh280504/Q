@@ -6,6 +6,7 @@ export interface QueuedDecision {
   sessionId: string;
   requestId: string;
   status: "accepted" | "declined";
+  declineReason?: string;
   queuedAt: string;
 }
 

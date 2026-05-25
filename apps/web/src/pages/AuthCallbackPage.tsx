@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import QLogo from "../components/QLogo";
 import { ensureQProfile } from "../lib/ensureQProfile";
+import { consumeReturnToDesktop } from "../lib/returnToDesktop";
 import { supabase } from "../lib/supabase";
 
 /** OAuth or email confirmation link return. */
@@ -24,6 +25,7 @@ export default function AuthCallbackPage() {
       const result = await ensureQProfile(session);
       if (result.ok) {
         done = true;
+        if (await consumeReturnToDesktop()) return;
         navigate(result.showTour ? "/studio?onboard=1" : "/studio", { replace: true });
         return;
       }

@@ -1,18 +1,39 @@
 import type { NowPlaying } from "../lib/trackMatch";
 import type { SeratoLinkStatus } from "../hooks/useSeratoPlayback";
+import type { ProlinkStatus } from "../hooks/useProlinkPlayback";
 import TrackMeta from "./TrackMeta";
 
 interface NowPlayingBarProps {
   nowPlaying: NowPlaying | null;
   seratoActive: boolean;
   seratoLinkStatus?: SeratoLinkStatus;
+  prolinkStatus?: ProlinkStatus;
+  autoAdvanceActive?: boolean;
   djSoftware: "rekordbox" | "serato";
+}
+
+function rekordboxIdleMessage(
+  prolinkStatus: ProlinkStatus | undefined,
+  autoAdvanceActive: boolean,
+): string {
+  if (prolinkStatus === "connected") {
+    return "Pro DJ Link connected — load a track on master deck and we'll show it here.";
+  }
+  if (autoAdvanceActive) {
+    return "Auto-advance is on. Accept a request and we'll start the deck timer automatically.";
+  }
+  if (prolinkStatus === "listening" || prolinkStatus === "idle") {
+    return "Tap Playing on a queue track when you mix it, or plug in a CDJ-3000 / DDJ-1000 / XDJ for live Pro DJ Link.";
+  }
+  return "Tap Playing on a queue track when you mix it.";
 }
 
 export default function NowPlayingBar({
   nowPlaying,
   seratoActive,
   seratoLinkStatus,
+  prolinkStatus,
+  autoAdvanceActive = false,
   djSoftware,
 }: NowPlayingBarProps) {
   return (
@@ -34,7 +55,7 @@ export default function NowPlayingBar({
                 ? "Play a track in Serato (updates in ~1s)…"
                 : djSoftware === "serato"
                   ? "Serato auto-detect when gig is active"
-                  : "Tap Playing on a queue track when you mix it"}
+                  : rekordboxIdleMessage(prolinkStatus, autoAdvanceActive)}
         </p>
       )}
     </div>

@@ -1,9 +1,9 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import QLogo from "../components/QLogo";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
-import type { Session, TrackSearchHit } from "@q/shared";
-import { sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
+import type { CrowdRequest, DeclineReason, Session, TrackSearchHit } from "@q/shared";
+import { DECLINE_REASON_LABELS, sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
 
 /**
  * The API also sanitizes, but we run it again here so existing libraries
@@ -26,8 +26,15 @@ export default function RequestPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
+  const [declineToast, setDeclineToast] = useState<{
+    title: string;
+    reason?: DeclineReason;
+  } | null>(null);
   const [manualTitle, setManualTitle] = useState("");
   const [manualArtist, setManualArtist] = useState("");
+  const trackedRequestsRef = useRef<Map<string, { title: string; status: "pending" | "accepted" | "declined" }>>(
+    new Map(),
+  );
 
   useEffect(() => {
     if (!code) return;
@@ -91,15 +98,20 @@ export default function RequestPage() {
   }) {
     if (!code) return;
     setError(null);
+    setDeclineToast(null);
     try {
-      const res = await api<{ message?: string }>(`/sessions/${code}/requests`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const res = await api<{ message?: string; request: CrowdRequest }>(
+        `/sessions/${code}/requests`,
+        { method: "POST", body: JSON.stringify(payload) },
+      );
       setSent(
         res.message ??
           `Request sent for “${payload.title}”. The DJ will see it on their screen — no need to yell over the music.`,
       );
+      trackedRequestsRef.current.set(res.request.id, {
+        title: payload.title,
+        status: "pending",
+      });
       setQuery("");
       setResults([]);
       setManualTitle("");
@@ -108,6 +120,42 @@ export default function RequestPage() {
       setError(e instanceof Error ? e.message : "Could not send request");
     }
   }
+
+  /**
+   * Poll the status of every request this device has submitted in this session
+   * so we can show the DJ's verdict (and decline reason, if they gave one)
+   * inline on the crowd page.
+   */
+  useEffect(() => {
+    if (!code) return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      const active = Array.from(trackedRequestsRef.current.entries()).filter(
+        ([, info]) => info.status === "pending",
+      );
+      if (active.length === 0) return;
+      for (const [requestId, info] of active) {
+        try {
+          const res = await api<{
+            status: "pending" | "accepted" | "declined";
+            declineReason?: DeclineReason;
+          }>(`/sessions/${code}/requests/${requestId}/status`);
+          if (cancelled) return;
+          if (res.status === info.status) continue;
+          trackedRequestsRef.current.set(requestId, { ...info, status: res.status });
+          if (res.status === "declined") {
+            setDeclineToast({ title: info.title, reason: res.declineReason });
+          }
+        } catch {
+          /* network blip — try again next tick */
+        }
+      }
+    }, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [code]);
 
   function onManual(e: FormEvent) {
     e.preventDefault();
@@ -237,6 +285,27 @@ export default function RequestPage() {
         </form>
       </section>
 
+      {declineToast && (
+        <div className="toast toast-declined" role="status">
+          <strong>
+            “{declineToast.title}” — the DJ passed on this one.
+          </strong>
+          {declineToast.reason && (
+            <span>
+              {" "}
+              Reason: <em>{DECLINE_REASON_LABELS[declineToast.reason]}</em>.
+            </span>
+          )}
+          <button
+            type="button"
+            className="toast-dismiss"
+            onClick={() => setDeclineToast(null)}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {sent && <p className="toast">{sent}</p>}
       {error && <p className="error">{error}</p>}
     </div>

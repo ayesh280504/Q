@@ -4,6 +4,7 @@ import CommunityNav from "../components/CommunityNav";
 import { hasCompletedWebOnboarding } from "../components/WebOnboardingTour";
 import { useAuth } from "../context/AuthContext";
 import { fetchMe, saveAccountToken, syncProfile } from "../lib/accountApi";
+import { consumeReturnToDesktop } from "../lib/returnToDesktop";
 import { supabase } from "../lib/supabase";
 import "../community.css";
 
@@ -45,6 +46,7 @@ export default function CompleteProfilePage() {
       });
       saveAccountToken(res.accountToken);
       await refreshProfile();
+      if (await consumeReturnToDesktop({ handle: username.trim() })) return;
       const tour = !hasCompletedWebOnboarding();
       navigate(tour ? "/studio?onboard=1" : "/studio", { replace: true });
     } catch (err) {

@@ -10,6 +10,12 @@ export interface TrackRecord {
   bpm?: number;
   key?: string;
   durationSec?: number;
+  /**
+   * Local filesystem path on the DJ's machine. Desktop-only — the API ignores
+   * this field (and the desktop strips it before uploading) so it never leaves
+   * the booth machine.
+   */
+  localPath?: string;
 }
 
 export type RequestSource = "library" | "spotify" | "manual";
@@ -32,7 +38,33 @@ export interface CrowdRequest {
   albumArtUrl?: string;
   /** Song was already played earlier in this set (from Serato history sync). */
   playedEarlierTonight?: boolean;
+  /** Why the DJ said no — surfaced to the requester on the crowd page. */
+  declineReason?: DeclineReason;
 }
+
+/** Canonical DJ decline reasons (free text "other" is captured separately). */
+export type DeclineReason =
+  | "vibe"
+  | "genre"
+  | "tempo"
+  | "explicit"
+  | "duplicate"
+  | "already_played"
+  | "not_now"
+  | "unavailable"
+  | "other";
+
+export const DECLINE_REASON_LABELS: Record<DeclineReason, string> = {
+  vibe: "Doesn't match the vibe",
+  genre: "Wrong genre for tonight",
+  tempo: "Wrong tempo right now",
+  explicit: "Too explicit for this room",
+  duplicate: "Already in the queue",
+  already_played: "Already played tonight",
+  not_now: "Maybe later",
+  unavailable: "Not in my library",
+  other: "Other",
+};
 
 /** Unified crowd search result (Spotify + optional local library). */
 export interface TrackSearchHit {
