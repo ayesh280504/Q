@@ -11,9 +11,17 @@ export interface OverlayDockQueueItem {
   playedEarlierTonight?: boolean;
 }
 
+export interface OverlayDockNowPlaying {
+  title: string;
+  artist: string;
+  bpm?: number;
+  key?: string;
+}
+
 interface OverlayDockProps {
   gigCode: string;
   gigDisplayName?: string;
+  nowPlaying: OverlayDockNowPlaying | null;
   pending: CrowdRequest[];
   queue: OverlayDockQueueItem[];
   pendingPulse: boolean;
@@ -32,6 +40,7 @@ interface OverlayDockProps {
 export default function OverlayDock({
   gigCode,
   gigDisplayName,
+  nowPlaying,
   pending,
   queue,
   pendingPulse,
@@ -83,6 +92,65 @@ export default function OverlayDock({
         </div>
       </header>
 
+      <section className="overlay-section overlay-section-now">
+        <div className="overlay-section-head">
+          <h3>Now playing</h3>
+          {nowPlaying && (
+            <TrackMeta bpm={nowPlaying.bpm} musicalKey={nowPlaying.key} compact />
+          )}
+        </div>
+        {nowPlaying ? (
+          <div className="overlay-now">
+            <strong title={nowPlaying.title}>{nowPlaying.title}</strong>
+            <span className="overlay-track-meta" title={nowPlaying.artist}>
+              {nowPlaying.artist}
+            </span>
+          </div>
+        ) : (
+          <p className="overlay-empty">
+            {djSoftware === "serato"
+              ? "Waiting for Serato Live Playlists…"
+              : "Mark the next track played to see it here."}
+          </p>
+        )}
+      </section>
+
+      <section className="overlay-section overlay-section-queue">
+        <div className="overlay-section-head">
+          <h3>Queue</h3>
+          {queue.length > 0 && <span className="overlay-count">{queue.length}</span>}
+        </div>
+        {queue.length === 0 ? (
+          <p className="overlay-empty">Empty — accept a request below.</p>
+        ) : (
+          <ul className="overlay-list">
+            {queue.map((item) => (
+              <li key={item.requestId} className="overlay-queue-item">
+                <div className="overlay-track">
+                  <div className="overlay-track-head">
+                    <strong title={item.title}>{item.title}</strong>
+                    <TrackMeta bpm={item.bpm} musicalKey={item.key} compact />
+                  </div>
+                  <span className="overlay-track-meta">{item.artist}</span>
+                </div>
+                <button
+                  type="button"
+                  className="overlay-btn"
+                  onClick={() => onPlayed(item)}
+                  title={
+                    djSoftware === "rekordbox"
+                      ? "Mark as now playing"
+                      : "Remove (auto-detect missed)"
+                  }
+                >
+                  {djSoftware === "rekordbox" ? "▶" : "✕"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="overlay-section">
         <div className="overlay-section-head">
           <h3>Requests</h3>
@@ -128,42 +196,6 @@ export default function OverlayDock({
                     ✕
                   </button>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="overlay-section overlay-section-queue">
-        <div className="overlay-section-head">
-          <h3>Queue</h3>
-          {queue.length > 0 && <span className="overlay-count">{queue.length}</span>}
-        </div>
-        {queue.length === 0 ? (
-          <p className="overlay-empty">Empty — accept a request above.</p>
-        ) : (
-          <ul className="overlay-list">
-            {queue.map((item) => (
-              <li key={item.requestId} className="overlay-queue-item">
-                <div className="overlay-track">
-                  <div className="overlay-track-head">
-                    <strong title={item.title}>{item.title}</strong>
-                    <TrackMeta bpm={item.bpm} musicalKey={item.key} compact />
-                  </div>
-                  <span className="overlay-track-meta">{item.artist}</span>
-                </div>
-                <button
-                  type="button"
-                  className="overlay-btn"
-                  onClick={() => onPlayed(item)}
-                  title={
-                    djSoftware === "rekordbox"
-                      ? "Mark as now playing"
-                      : "Remove (auto-detect missed)"
-                  }
-                >
-                  {djSoftware === "rekordbox" ? "▶" : "✕"}
-                </button>
               </li>
             ))}
           </ul>

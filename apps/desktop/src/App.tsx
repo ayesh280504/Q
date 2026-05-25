@@ -22,7 +22,12 @@ import WelcomeTour from "./components/WelcomeTour";
 import StartGigPrompt from "./components/StartGigPrompt";
 import PrivacyFiltersPanel from "./components/PrivacyFiltersPanel";
 import OverlayDock from "./components/OverlayDock";
-import { enterOverlayMode, exitOverlayMode } from "./lib/overlayWindow";
+import {
+  enterOverlayMode,
+  exitOverlayMode,
+  startAlwaysOnTopGuard,
+  stopAlwaysOnTopGuard,
+} from "./lib/overlayWindow";
 import UpdateBanner from "./components/UpdateBanner";
 import { checkForUpdate, suppressVersion, type AvailableUpdate } from "./lib/updater";
 import CrateSelectionPanel, { type CrateOption } from "./components/CrateSelectionPanel";
@@ -188,12 +193,14 @@ export default function App() {
       document.body.classList.add("overlay-mode");
       void enterOverlayMode(false).then(() => {
         if (!cancelled) setPinWindow(true);
+        void startAlwaysOnTopGuard();
       });
     } else {
       document.body.classList.remove("overlay-mode");
     }
     return () => {
       cancelled = true;
+      stopAlwaysOnTopGuard();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -826,7 +833,9 @@ export default function App() {
       document.body.classList.add("overlay-mode");
       await enterOverlayMode(pinWindow);
       setPinWindow(true);
+      void startAlwaysOnTopGuard();
     } else {
+      stopAlwaysOnTopGuard();
       await exitOverlayMode();
       document.body.classList.remove("overlay-mode");
       setPinWindow(false);
@@ -855,6 +864,7 @@ export default function App() {
         <OverlayDock
           gigCode={gig.code}
           gigDisplayName={gig.displayName}
+          nowPlaying={nowPlaying}
           pending={pending}
           queue={queue}
           pendingPulse={requestPulse}
@@ -1065,21 +1075,45 @@ export default function App() {
                     style={{ marginTop: "0.35rem", width: "100%" }}
                     disabled={busy}
                     onClick={async () => {
+                      const email = accountEmail.trim();
+                      const password = accountPassword;
+                      const handle = accountHandle.trim();
+                      if (!email || !password) {
+                        setMessage("Enter your email and password.");
+                        return;
+                      }
+                      if (accountMode === "register" && !handle) {
+                        setMessage("Choose a handle (e.g. @djyesh) to register.");
+                        return;
+                      }
+                      setBusy(true);
+                      setMessage(
+                        accountMode === "register"
+                          ? "Creating account…"
+                          : "Signing in…",
+                      );
                       try {
                         const res =
                           accountMode === "register"
                             ? await registerAccount({
-                                email: accountEmail,
-                                password: accountPassword,
-                                handle: accountHandle.trim(),
-                                displayName: accountHandle.trim(),
+                                email,
+                                password,
+                                handle,
+                                displayName: handle,
                               })
-                            : await loginAccount(accountEmail, accountPassword);
+                            : await loginAccount(email, password);
                         saveAccountToken(res.accountToken);
                         setAccount(res.user);
+                        setAccountPassword("");
                         setMessage(`Signed in as @${res.user.handle}`);
                       } catch (e) {
-                        setMessage(e instanceof Error ? e.message : "Account failed");
+                        setMessage(
+                          e instanceof Error
+                            ? `Sign-in failed: ${e.message}`
+                            : "Sign-in failed — check your internet and try again.",
+                        );
+                      } finally {
+                        setBusy(false);
                       }
                     }}
                   >

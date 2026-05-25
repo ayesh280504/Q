@@ -942,7 +942,28 @@ body.overlay-mode html {
 .overlay-section-queue {
   border-top: 1px solid #1a1a24;
   flex: 0 1 auto;
-  max-height: 42%;
+  max-height: 38%;
+}
+
+.overlay-section-now {
+  flex: 0 0 auto;
+  border-bottom: 1px solid #1a1a24;
+  padding-bottom: 0.5rem;
+}
+
+.overlay-now {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.15rem 0 0.25rem;
+}
+
+.overlay-now strong {
+  font-size: 0.86rem;
+  color: #f5f3ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .overlay-section-head {

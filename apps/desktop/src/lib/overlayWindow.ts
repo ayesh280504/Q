@@ -135,3 +135,57 @@ export async function exitOverlayMode(): Promise<void> {
     console.error("exitOverlayMode failed", err);
   }
 }
+
+let focusGuardUnlisten: (() => void) | null = null;
+
+/**
+ * Re-applies `setAlwaysOnTop(true)` whenever the booth window loses focus.
+ *
+ * Windows reliably honors `HWND_TOPMOST`, but some apps (Serato in
+ * full-screen-ish layouts, full-screen browsers, etc.) can momentarily steal
+ * the top spot when they activate. Re-asserting on every blur event keeps the
+ * Q overlay glued to the foreground while the DJ clicks back into Serato.
+ *
+ * Returns a function that disables the guard. Safe to call multiple times —
+ * the previous guard is detached before a new one is attached.
+ */
+export async function startAlwaysOnTopGuard(): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  try {
+    if (focusGuardUnlisten) {
+      focusGuardUnlisten();
+      focusGuardUnlisten = null;
+    }
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    const win = getCurrentWindow();
+    const unlisten = await win.onFocusChanged(({ payload: focused }) => {
+      if (focused) return;
+      void win.setAlwaysOnTop(true).catch(() => {
+        /* permission denied or window gone — nothing to do */
+      });
+    });
+    focusGuardUnlisten = unlisten;
+    return () => {
+      try {
+        unlisten();
+      } catch {
+        /* ignore */
+      }
+      if (focusGuardUnlisten === unlisten) focusGuardUnlisten = null;
+    };
+  } catch (err) {
+    console.error("startAlwaysOnTopGuard failed", err);
+    return () => {};
+  }
+}
+
+export function stopAlwaysOnTopGuard() {
+  if (focusGuardUnlisten) {
+    try {
+      focusGuardUnlisten();
+    } catch {
+      /* ignore */
+    }
+    focusGuardUnlisten = null;
+  }
+}
