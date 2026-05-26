@@ -420,6 +420,57 @@ app.get("/debug/spotify", async (c) => {
     }
   }
 
+  // Once we have a token, also do an actual search so we can see what comes
+  // back from Spotify when called from inside Render's network.
+  let searchStatus: number | null = null;
+  let searchTotal: number | null = null;
+  let searchItemCount: number | null = null;
+  let searchError: string | null = null;
+  let searchSampleTitle: string | null = null;
+  let wrappedHits: number | null = null;
+  let wrappedError: string | null = null;
+  if (tokenStatus === 200) {
+    try {
+      const tokRes = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${idTrim}:${secretTrim}`).toString("base64")}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "grant_type=client_credentials",
+      });
+      const tokJson = (await tokRes.json()) as { access_token?: string };
+      const tok = tokJson.access_token;
+      if (tok) {
+        const sRes = await fetch(
+          "https://api.spotify.com/v1/search?q=drake&type=track&limit=3",
+          { headers: { Authorization: `Bearer ${tok}` } },
+        );
+        searchStatus = sRes.status;
+        if (sRes.ok) {
+          const sj = (await sRes.json()) as {
+            tracks?: { items?: Array<{ name?: string }>; total?: number };
+          };
+          searchTotal = sj.tracks?.total ?? null;
+          searchItemCount = sj.tracks?.items?.length ?? null;
+          searchSampleTitle = sj.tracks?.items?.[0]?.name ?? null;
+        } else {
+          searchError = await sRes.text().catch(() => "<unreadable>");
+        }
+      }
+    } catch (e) {
+      searchError = e instanceof Error ? e.message : String(e);
+    }
+
+    // Now exercise the production code path so we can see what the wrapper does.
+    try {
+      const hits = await searchSpotifyTracks("drake", 3);
+      wrappedHits = hits.length;
+    } catch (e) {
+      wrappedError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   return c.json({
     clientId: {
       present: idTrim.length > 0,
@@ -439,6 +490,17 @@ app.get("/debug/spotify", async (c) => {
       attempted: Boolean(idTrim && secretTrim),
       status: tokenStatus,
       error: tokenError,
+    },
+    rawSearch: {
+      status: searchStatus,
+      total: searchTotal,
+      itemCount: searchItemCount,
+      sampleTitle: searchSampleTitle,
+      error: searchError,
+    },
+    wrappedSearch: {
+      hitCount: wrappedHits,
+      error: wrappedError,
     },
   });
 });
