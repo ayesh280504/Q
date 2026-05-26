@@ -463,11 +463,12 @@ app.get("/debug/spotify", async (c) => {
     }
 
     // Now exercise the production code path so we can see what the wrapper does.
+    // Use the same limit as the real route (20) to rule out any per-limit edge case.
     try {
-      const hits = await searchSpotifyTracks("drake", 3);
+      const hits = await searchSpotifyTracks("drake", 20);
       wrappedHits = hits.length;
     } catch (e) {
-      wrappedError = e instanceof Error ? e.message : String(e);
+      wrappedError = e instanceof Error ? `${e.message} :: ${e.stack ?? ""}` : String(e);
     }
   }
 
@@ -742,24 +743,34 @@ app.get("/sessions/:code/tracks/search", async (c) => {
     `${normalizeTitle(title)}|${normalizeTitle(artist)}`;
 
   if (streaming) {
-    const spotify = await searchSpotifyTracks(q, limit);
-    for (const t of spotify) {
-      const dk = dedupeKey(t.title, t.artist);
-      seen.add(dk);
-      hits.push({
-        id: `spotify:${t.spotifyId}`,
-        title: t.title,
-        artist: t.artist,
-        album: t.album,
-        bpm: t.bpm,
-        key: t.key,
-        durationSec: t.durationSec,
-        albumArtUrl: t.albumArtUrl,
-        source: "spotify",
-        inStock: false,
-        spotifyId: t.spotifyId,
-        playedEarlierTonight: isPlayedEarlierTonight(session.id, t.title, t.artist),
-      });
+    try {
+      const spotify = await searchSpotifyTracks(q, limit);
+      console.log(
+        `[search] q="${q}" limit=${limit} streaming=true spotify.length=${spotify.length}`,
+      );
+      for (const t of spotify) {
+        const dk = dedupeKey(t.title, t.artist);
+        seen.add(dk);
+        hits.push({
+          id: `spotify:${t.spotifyId}`,
+          title: t.title,
+          artist: t.artist,
+          album: t.album,
+          bpm: t.bpm,
+          key: t.key,
+          durationSec: t.durationSec,
+          albumArtUrl: t.albumArtUrl,
+          source: "spotify",
+          inStock: false,
+          spotifyId: t.spotifyId,
+          playedEarlierTonight: isPlayedEarlierTonight(session.id, t.title, t.artist),
+        });
+      }
+    } catch (e) {
+      console.error(
+        `[search] searchSpotifyTracks threw for q="${q}":`,
+        e instanceof Error ? `${e.message}\n${e.stack}` : e,
+      );
     }
   }
 
@@ -833,6 +844,9 @@ app.get("/sessions/:code/tracks/search", async (c) => {
     });
   }
 
+  console.log(
+    `[search] q="${q}" final hits=${hits.length} returning=${Math.min(hits.length, limit)}`,
+  );
   return c.json({
     results: hits.slice(0, limit),
     mode: streaming ? ("spotify" as const) : ("library" as const),
