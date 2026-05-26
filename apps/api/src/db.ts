@@ -85,6 +85,11 @@ ensureColumn(
   "streaming_search",
   `ALTER TABLE sessions ADD COLUMN streaming_search INTEGER NOT NULL DEFAULT 1`,
 );
+ensureColumn(
+  "sessions",
+  "library_source",
+  `ALTER TABLE sessions ADD COLUMN library_source TEXT`,
+);
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_requests_guest ON requests(session_id, guest_id);

@@ -1,9 +1,16 @@
+import LibraryProfilePicker from "./LibraryProfilePicker";
+import type { LibrarySource } from "../lib/libraryProfile";
+
 interface StartGigPromptProps {
   open: boolean;
   onClose: () => void;
   onStartGig: () => void;
   busy: boolean;
   liveCode?: string;
+  /** Current library source choice — null means the DJ hasn't picked yet. */
+  librarySource: LibrarySource | null;
+  /** Persist + apply the DJ's library source pick. */
+  onLibrarySourceChange: (source: LibrarySource) => void;
 }
 
 export default function StartGigPrompt({
@@ -12,8 +19,15 @@ export default function StartGigPrompt({
   onStartGig,
   busy,
   liveCode,
+  librarySource,
+  onLibrarySourceChange,
 }: StartGigPromptProps) {
   if (!open) return null;
+
+  // Require an explicit library-source pick on the very first gig. Returning
+  // DJs already have a saved profile (the picker still shows so they can
+  // confirm or change it, but Start is enabled by default).
+  const canStart = !busy && (librarySource != null);
 
   return (
     <div className="welcome-tour-backdrop" role="dialog" aria-modal="true">
@@ -40,11 +54,18 @@ export default function StartGigPrompt({
               Creates your session and QR for crowd requests. You need internet once — after
               that, accept and decline work offline until you sync.
             </p>
+            <LibraryProfilePicker value={librarySource} onChange={onLibrarySourceChange} />
             <div className="welcome-tour-actions">
               <button type="button" className="btn ghost" onClick={onClose}>
                 Not yet
               </button>
-              <button type="button" className="btn primary" disabled={busy} onClick={onStartGig}>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={!canStart}
+                onClick={onStartGig}
+                title={librarySource == null ? "Pick a library profile to continue" : undefined}
+              >
                 {busy ? "Starting…" : "Start gig"}
               </button>
             </div>

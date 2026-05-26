@@ -51,10 +51,25 @@ function applySelection(
 export async function importRekordboxFromDialog(
   opts?: RekordboxImportOptions,
 ): Promise<RekordboxImportResult | null> {
+  // Open the picker rooted at the Pioneer config folder (where Rekordbox
+  // writes `rekordbox.xml`). DJs commonly navigate to their *music* folder
+  // looking for it — but the XML is the library *index*, not the audio
+  // files, and lives under `%APPDATA%\Pioneer\rekordbox\` on Windows /
+  // `~/Library/Pioneer/rekordbox/` on Mac, both of which are hidden by
+  // default in their respective file managers.
+  let defaultPath: string | undefined;
+  try {
+    const dir = await invoke<string | null>("rekordbox_pioneer_dir");
+    if (dir) defaultPath = dir;
+  } catch {
+    /* fallback to the OS default (last-used dir) */
+  }
+
   const selected = await open({
     multiple: false,
-    filters: [{ name: "Rekordbox XML", extensions: ["xml"] }],
-    title: "Select rekordbox.xml",
+    filters: [{ name: "Rekordbox XML (rekordbox.xml)", extensions: ["xml"] }],
+    title: "Select rekordbox.xml — Pioneer's library index, NOT your music folder",
+    defaultPath,
   });
 
   if (!selected || typeof selected !== "string") return null;

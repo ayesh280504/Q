@@ -169,6 +169,32 @@ export default function RequestPage() {
   if (!code) return null;
 
   const streaming = session?.streamingSearch ?? false;
+  // The DJ's gig-start library profile drives whether we hit Spotify, the
+  // local library, or both. We mirror the wording here so guests know what
+  // they're searching across without having to think about it.
+  const librarySource = session?.librarySource;
+  const searchScope: "local" | "spotify" | "both" =
+    librarySource === "local"
+      ? "local"
+      : librarySource === "spotify"
+        ? "spotify"
+        : librarySource === "both"
+          ? "both"
+          : streaming
+            ? "both"
+            : "local";
+  const searchPlaceholder =
+    searchScope === "spotify"
+      ? "Search any Spotify track…"
+      : searchScope === "both"
+        ? "Search any song (Spotify + DJ's crate)…"
+        : "Search title or artist in DJ library…";
+  const searchHint =
+    searchScope === "spotify"
+      ? "Search Spotify's catalog — the DJ is spinning from Spotify tonight"
+      : searchScope === "both"
+        ? "Search any song — Spotify hits and DJ's own crate both show up"
+        : "Search the DJ's synced library";
 
   return (
     <div className="app">
@@ -187,18 +213,13 @@ export default function RequestPage() {
       )}
       {session && (
         <p className="sub limits-hint">
-          Up to {session.maxRequestsPerGuest ?? 3} requests per person ·{" "}
-          {streaming
-            ? "Search any song — BPM & key go to the DJ automatically"
-            : "Search the DJ's synced library"}
+          Up to {session.maxRequestsPerGuest ?? 3} requests per person · {searchHint}
         </p>
       )}
 
       <input
         className="search"
-        placeholder={
-          streaming ? "Search any song (Spotify)…" : "Search title or artist in DJ library…"
-        }
+        placeholder={searchPlaceholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         autoComplete="off"

@@ -101,9 +101,14 @@ async function writeFiles(
   }
 
   const niceMessage = seratoCratePath
-    ? `Added to your “Q Requests” crate in Serato.`
+    ? `Added to your "Q Requests" crate in Serato.`
     : djSoftware === "rekordbox"
-      ? `Added to Q Requests.m3u8 — drag it into Rekordbox once (File → Import Playlist).`
+      ? // First-accept-of-the-gig nudge: surface the path so the DJ can import
+        // the playlist into Rekordbox once. After that they can ignore this
+        // message and we'll keep silently appending tracks in the background.
+        paths.length === 1 && m3u8Path
+        ? `Q Requests playlist saved to ${m3u8Path}. In Rekordbox: File → Import Playlist → pick this file once. Future accepts will keep adding here automatically.`
+        : `Added to Q Requests.m3u8 — your imported playlist in Rekordbox is updating.`
       : `Added to Q Requests.m3u8 — open it from Serato → Files.`;
 
   return { m3u8Path, seratoCratePath, message: niceMessage };

@@ -202,7 +202,29 @@ type SessionRow = {
   max_pending_requests?: number | null;
   max_requests_per_guest?: number | null;
   streaming_search?: number | null;
+  library_source?: string | null;
 };
+
+type LibrarySourceValue = "local" | "spotify" | "both";
+
+function parseLibrarySource(value: unknown): LibrarySourceValue | undefined {
+  if (value === "local" || value === "spotify" || value === "both") return value;
+  return undefined;
+}
+
+/**
+ * Map the DJ's gig-start library profile to the streaming-search flag.
+ * - `local`: crowd should ONLY see tracks the DJ has on disk (no Spotify hits).
+ * - `spotify` or `both`: crowd needs Spotify catalog access in addition to
+ *   whatever local library exists.
+ * - `undefined` (legacy sessions): preserve the previous default behaviour
+ *   (streaming-on whenever Spotify is configured).
+ */
+function streamingFlagFor(source: LibrarySourceValue | undefined): number {
+  if (source === "local") return 0;
+  if (source === "spotify" || source === "both") return 1;
+  return 1;
+}
 
 type RequestRow = {
   id: string;
@@ -241,6 +263,7 @@ function rowToSession(row: SessionRow): Session {
     maxPendingRequests: row.max_pending_requests ?? 20,
     maxRequestsPerGuest: row.max_requests_per_guest ?? 3,
     streamingSearch: sessionUsesStreamingSearch(row),
+    librarySource: parseLibrarySource(row.library_source),
   };
 }
 
@@ -368,6 +391,7 @@ app.post("/sessions", async (c) => {
     displayName?: string;
     maxPendingRequests?: number;
     maxRequestsPerGuest?: number;
+    librarySource?: unknown;
   };
   const sessionId = id();
   const code = sessionCode();
@@ -377,6 +401,10 @@ app.post("/sessions", async (c) => {
   let displayName = body.displayName?.trim() || name;
   const maxPending = clampLimit(body.maxPendingRequests ?? 20, 1, 100);
   const maxPerGuest = clampLimit(body.maxRequestsPerGuest ?? 3, 1, 20);
+  const librarySource = parseLibrarySource(body.librarySource);
+  // Local-only DJs explicitly want their crowd to ONLY see tracks the booth
+  // has on disk — we honour that even if Spotify is configured server-side.
+  const streamingSearch = streamingFlagFor(librarySource);
 
   const accountUser = await resolveAccount(c);
   const djUserId = accountUser?.id ?? null;
@@ -385,8 +413,8 @@ app.post("/sessions", async (c) => {
   }
 
   db.prepare(
-    `INSERT INTO sessions (id, code, name, display_name, dj_token, created_at, max_pending_requests, max_requests_per_guest, dj_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sessions (id, code, name, display_name, dj_token, created_at, max_pending_requests, max_requests_per_guest, dj_user_id, streaming_search, library_source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     sessionId,
     code,
@@ -397,6 +425,8 @@ app.post("/sessions", async (c) => {
     maxPending,
     maxPerGuest,
     djUserId,
+    streamingSearch,
+    librarySource ?? null,
   );
 
   const response: CreateSessionResponse = {
@@ -408,7 +438,8 @@ app.post("/sessions", async (c) => {
       displayName,
       maxPendingRequests: maxPending,
       maxRequestsPerGuest: maxPerGuest,
-      streamingSearch: isSpotifyConfigured(),
+      streamingSearch: streamingSearch !== 0 && isSpotifyConfigured(),
+      librarySource,
     },
     djToken,
     crowdUrl: `${crowdBaseUrl}/r/${code}`,
@@ -442,9 +473,20 @@ app.patch("/sessions/:sessionId/settings", async (c) => {
       ? clampLimit(body.maxRequestsPerGuest, 1, 20)
       : (row.max_requests_per_guest ?? 3);
 
+  // If the DJ flips their library profile mid-gig (e.g. realises they're
+  // also pulling from Spotify), reshape the crowd's search scope to match.
+  const nextLibrarySource =
+    body.librarySource !== undefined
+      ? parseLibrarySource(body.librarySource) ?? null
+      : (parseLibrarySource(row.library_source) ?? null);
+  const streamingSearch =
+    body.librarySource !== undefined
+      ? streamingFlagFor(nextLibrarySource ?? undefined)
+      : (row.streaming_search ?? 1);
+
   db.prepare(
-    `UPDATE sessions SET display_name = ?, max_pending_requests = ?, max_requests_per_guest = ? WHERE id = ?`,
-  ).run(displayName, maxPending, maxPerGuest, sessionId);
+    `UPDATE sessions SET display_name = ?, max_pending_requests = ?, max_requests_per_guest = ?, library_source = ?, streaming_search = ? WHERE id = ?`,
+  ).run(displayName, maxPending, maxPerGuest, nextLibrarySource, streamingSearch, sessionId);
 
   const updated = db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(sessionId) as SessionRow;
   return c.json({ session: rowToSession(updated) });

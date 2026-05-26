@@ -25,6 +25,17 @@ import StartGigPrompt from "./components/StartGigPrompt";
 import PrivacyFiltersPanel from "./components/PrivacyFiltersPanel";
 import OverlayDock from "./components/OverlayDock";
 import DeclineMenu from "./components/DeclineMenu";
+import LibrarySetupHint, { type LibrarySetupKind } from "./components/LibrarySetupHint";
+import LibraryProfilePicker from "./components/LibraryProfilePicker";
+import { openExternal } from "./lib/openExternal";
+import {
+  loadLibrarySource,
+  saveLibrarySource,
+  shouldImportLocalLibrary,
+  autoCrateApplies,
+  LIBRARY_SOURCE_LABELS,
+  type LibrarySource,
+} from "./lib/libraryProfile";
 import {
   enterOverlayMode,
   exitOverlayMode,
@@ -234,6 +245,27 @@ export default function App() {
   const [prolinkStatus, setProlinkStatus] = useState<ProlinkStatus>("idle");
   const [prolinkDetail, setProlinkDetail] = useState<string | undefined>(undefined);
   const [autoAdvance, setAutoAdvance] = useState<boolean>(loadAutoAdvance);
+  const [setupHint, setSetupHint] = useState<LibrarySetupKind | null>(null);
+  const [librarySource, setLibrarySourceState] = useState<LibrarySource | null>(loadLibrarySource);
+
+  function pickLibrarySource(next: LibrarySource) {
+    setLibrarySourceState(next);
+    saveLibrarySource(next);
+    // If there's already a live gig, push the new profile to the API so the
+    // crowd's search scope re-tunes immediately (e.g. switching from
+    // "Local only" to "Both" lights up Spotify results without restarting).
+    if (gig) {
+      updateSessionSettings(gig.sessionId, gig.djToken, { librarySource: next })
+        .then(() => {
+          setMessage(`Library profile set to "${LIBRARY_SOURCE_LABELS[next].title}".`);
+        })
+        .catch(() => {
+          setMessage(
+            "Couldn't push the library profile change to the server — your local pick is saved; crowd will pick it up on the next sync.",
+          );
+        });
+    }
+  }
   const [account, setAccount] = useState<DjProfile | null>(null);
   const [lanIpv4, setLanIpv4] = useState<string | null>(null);
   const [spotifyCrowdSearch, setSpotifyCrowdSearch] = useState(false);
@@ -522,7 +554,17 @@ export default function App() {
     enabled: seratoOn,
     onNowPlaying: setNowPlaying,
     onHistory: setPlayedHistory,
-    onLinkStatus: setSeratoLinkStatus,
+    onLinkStatus: (status) => {
+      setSeratoLinkStatus(status);
+      // Serato Lite never writes to _Serato_/History/Sessions/. If the import
+      // succeeded (we have a Subcrates folder somewhere) but the History
+      // folder is missing, that's almost always Serato Lite — surface the
+      // friendly explanation rather than leaving the DJ wondering why
+      // "Now Playing" is permanently blank.
+      if (status === "no_folder" && lastImportRef.current && setupHint == null) {
+        setSetupHint("serato-lite");
+      }
+    },
   });
 
   useProlinkPlayback({
@@ -691,6 +733,9 @@ export default function App() {
           displayName: display,
           maxPendingRequests: maxPending,
           maxRequestsPerGuest: maxPerGuest,
+          // Carry the DJ's library profile to the API so the crowd search
+          // is scoped correctly from request #1.
+          librarySource: librarySource ?? undefined,
         },
         getAccountToken(),
       );
@@ -786,13 +831,18 @@ export default function App() {
               });
 
       if (!result) {
-        setMessage(
-          mode === "auto"
-            ? djSoftware === "rekordbox"
-              ? "No rekordbox.xml found. Export from Rekordbox or pick the file manually."
-              : "No Serato Subcrates folder found. Point to your _Serato_/Subcrates folder."
-            : "Import cancelled.",
-        );
+        if (mode === "auto" && djSoftware === "rekordbox") {
+          // Most common reason: Rekordbox 6 ships with XML export disabled.
+          // Show the step-by-step hint instead of a vague toast.
+          setSetupHint("rekordbox-xml-missing");
+          setMessage(null);
+        } else {
+          setMessage(
+            mode === "auto"
+              ? "No Serato Subcrates folder found. Point to your _Serato_/Subcrates folder."
+              : "Import cancelled.",
+          );
+        }
         return;
       }
 
@@ -875,6 +925,24 @@ export default function App() {
           ? ` · ${hiddenTotal} kept private${skippedCrates.length ? ` (${skippedCrates.length} crate${skippedCrates.length === 1 ? "" : "s"} skipped)` : ""}`
           : "";
 
+      // Track-metadata health snapshot — helps the DJ spot the difference
+      // between "library imported" and "library imported but no BPM/key
+      // tagged in their DJ app yet". A low ratio here is the leading cause
+      // of "why don't I see BPM pills on the queue?".
+      const withBpm = localTracks.filter((t) => Number.isFinite(t.bpm as number)).length;
+      const withKey = localTracks.filter((t) => !!t.key).length;
+      const metaNote =
+        localTracks.length > 0
+          ? ` · ${withBpm}/${localTracks.length} have BPM, ${withKey}/${localTracks.length} have key`
+          : "";
+      const lowMetaWarning =
+        localTracks.length > 0 &&
+        (withBpm < localTracks.length * 0.5 || withKey < localTracks.length * 0.5)
+          ? djSoftware === "rekordbox"
+            ? " — analyze your library in Rekordbox (right-click track → Analyze Track) to fill in missing BPM/key."
+            : " — in Serato, right-click your crate → Set Auto BPM / Set Auto Key to analyze missing tracks."
+          : "";
+
       const next = { ...gig, trackCount: localTracks.length };
       setGig(next);
       saveGig(next);
@@ -892,11 +960,13 @@ export default function App() {
           setRequests(syncResult.requests);
           setServerPending(syncResult.result.pendingOnServer);
         }
-        setMessage(`Imported ${countLabel}${privateNote} and synced to cloud.`);
+        setMessage(
+          `Imported ${countLabel}${privateNote}${metaNote} and synced to cloud.${lowMetaWarning}`,
+        );
       } else {
         queueLibraryIfOffline(gig.sessionId, localTracks, true);
         setMessage(
-          `Imported ${countLabel}${privateNote} locally. Queued — tap Sync when online.`,
+          `Imported ${countLabel}${privateNote}${metaNote} locally. Queued — tap Sync when online.${lowMetaWarning}`,
         );
       }
       refreshOutbox();
@@ -986,6 +1056,10 @@ export default function App() {
    */
   async function writeAcceptedToCrate(req: CrowdRequest) {
     if (!gig) return;
+    // Spotify-only DJs have no local files to add to a crate — skip the
+    // write entirely (instead of silently no-op'ing inside addToQueueCrate
+    // which would still emit a misleading "added to crate" toast).
+    if (!autoCrateApplies(librarySource)) return;
     const externalId = req.matchedTrackId || req.externalId;
     if (!externalId) return;
     try {
@@ -1085,6 +1159,8 @@ export default function App() {
         onStartGig={() => void startGig()}
         busy={busy}
         liveCode={gig?.code}
+        librarySource={librarySource}
+        onLibrarySourceChange={pickLibrarySource}
       />
       {dockMode && (
         <header className="dock-topbar">
@@ -1214,10 +1290,8 @@ export default function App() {
                     Sign in once on the website — we&apos;ll bring you right back to the
                     booth app when you&apos;re done.
                   </p>
-                  <a
-                    href={`${WEB_URL}/login?returnTo=desktop`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
                     className="btn primary"
                     style={{
                       display: "block",
@@ -1225,14 +1299,16 @@ export default function App() {
                       textAlign: "center",
                       marginTop: "0.25rem",
                     }}
-                    onClick={() =>
+                    onClick={async () => {
+                      const url = `${WEB_URL}/login?returnTo=desktop`;
                       setMessage(
                         "Opening browser… finish on the website and the booth will sign you in automatically.",
-                      )
-                    }
+                      );
+                      await openExternal(url);
+                    }}
                   >
                     Sign in / create account
-                  </a>
+                  </button>
                   <p
                     className="muted"
                     style={{ fontSize: "0.7rem", marginTop: "0.5rem", textAlign: "center" }}
@@ -1338,15 +1414,53 @@ export default function App() {
               {pinWindow ? "Unpin window" : "Pin on top"}
             </button>
             <h4 className="settings-section-label">Library</h4>
+            <div className="library-source-summary">
+              <span className="muted library-source-summary-label">Library profile:</span>
+              <strong>
+                {librarySource ? LIBRARY_SOURCE_LABELS[librarySource].title : "Not picked"}
+              </strong>
+              <LibraryProfilePicker
+                value={librarySource}
+                onChange={pickLibrarySource}
+                showHeading={false}
+              />
+            </div>
             <button className="btn primary" onClick={syncNow} disabled={busy}>
               Sync now
             </button>
-            <button className="btn ghost" onClick={() => importLibrary("auto")} disabled={busy}>
-              {djSoftware === "rekordbox" ? "Auto-import Rekordbox" : "Auto-import Serato"}
-            </button>
-            <button className="btn ghost" onClick={() => importLibrary("file")} disabled={busy}>
-              {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates folder…"}
-            </button>
+            {shouldImportLocalLibrary(librarySource) ? (
+              <>
+                <button
+                  className="btn ghost"
+                  onClick={() => importLibrary("auto")}
+                  disabled={busy}
+                >
+                  {djSoftware === "rekordbox" ? "Auto-import Rekordbox" : "Auto-import Serato"}
+                </button>
+                <button
+                  className="btn ghost"
+                  onClick={() => importLibrary("file")}
+                  disabled={busy}
+                >
+                  {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates folder…"}
+                </button>
+              </>
+            ) : (
+              <p className="muted library-source-skip">
+                Spotify-only profile — Q doesn&apos;t need a local-library import. The crowd will
+                find tracks via Spotify search; you cue them up live in {djSoftware === "rekordbox" ? "Rekordbox" : "Serato"}.
+              </p>
+            )}
+            {setupHint && (
+              <LibrarySetupHint
+                kind={setupHint}
+                onPickManually={() => {
+                  setSetupHint(null);
+                  void importLibrary("file");
+                }}
+                onDismiss={() => setSetupHint(null)}
+              />
+            )}
             {djSoftware === "rekordbox" && (
               <>
                 <h4 className="settings-section-label">Live tracking</h4>

@@ -148,6 +148,30 @@ fn detect_rekordbox_xml() -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+/// Returns the Pioneer/rekordbox folder path even if `rekordbox.xml` isn't
+/// there yet — used to point the manual file picker at the right starting
+/// directory. DJs would otherwise navigate into their music folder looking
+/// for the XML, since `%APPDATA%` is hidden by default on Windows.
+#[tauri::command]
+fn rekordbox_pioneer_dir() -> Option<String> {
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let dir = PathBuf::from(&appdata).join("Pioneer").join("rekordbox");
+        if dir.is_dir() {
+            return Some(dir.to_string_lossy().to_string());
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        let dir = PathBuf::from(&home)
+            .join("Library")
+            .join("Pioneer")
+            .join("rekordbox");
+        if dir.is_dir() {
+            return Some(dir.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
 fn rekordbox_candidates() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
@@ -286,11 +310,13 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             read_text_file,
             read_binary_file,
             list_crate_files,
             detect_rekordbox_xml,
+            rekordbox_pioneer_dir,
             detect_serato_subcrates,
             get_serato_latest_session,
             list_serato_recent_sessions,

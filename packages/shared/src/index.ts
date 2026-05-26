@@ -87,6 +87,14 @@ export interface TrackSearchHit {
   isHot?: boolean;
 }
 
+/**
+ * Where this DJ sources tracks for the gig — picked at gig-start. This
+ * controls whether the crowd's search hits Spotify, the local library, or both.
+ * `null` means a legacy session that pre-dates the library profile picker;
+ * the server falls back to whatever `streamingSearch` is set to.
+ */
+export type LibrarySource = "local" | "spotify" | "both";
+
 export interface Session {
   id: string;
   code: string;
@@ -95,6 +103,12 @@ export interface Session {
   librarySyncedAt?: string;
   /** Open Spotify search for crowd (when API keys configured). */
   streamingSearch?: boolean;
+  /**
+   * DJ's pick from the gig-start library profile picker. Drives the crowd
+   * search scope. `undefined` = legacy session (server falls back to global
+   * streaming_search default).
+   */
+  librarySource?: LibrarySource;
   /** Shown in the center of the QR sticker (e.g. DJ name). */
   displayName?: string;
   /** Max pending requests in the DJ queue before crowd is paused. */
@@ -107,6 +121,7 @@ export interface SessionSettings {
   displayName?: string;
   maxPendingRequests?: number;
   maxRequestsPerGuest?: number;
+  librarySource?: LibrarySource;
 }
 
 export type PlanTier = "free" | "pro";

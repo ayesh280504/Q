@@ -41,6 +41,12 @@ export function createSession(
     displayName: string;
     maxPendingRequests: number;
     maxRequestsPerGuest: number;
+    /**
+     * DJ's gig-start pick (local / spotify / both). Drives the crowd-search
+     * scope server-side so a "Local only" DJ never sees Spotify hits and a
+     * "Spotify only" DJ doesn't get an empty-library experience.
+     */
+    librarySource?: "local" | "spotify" | "both";
   },
   accountToken?: string | null,
 ) {

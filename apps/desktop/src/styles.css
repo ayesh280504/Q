@@ -702,6 +702,224 @@ body.overlay-mode html {
   line-height: 1.35;
 }
 
+.setup-hint {
+  margin: 0.6rem 0 0.4rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.10), rgba(124, 92, 255, 0.04));
+  border: 1px solid rgba(124, 92, 255, 0.32);
+  font-size: 0.78rem;
+  color: #e4e4e7;
+  line-height: 1.4;
+}
+
+.setup-hint-serato {
+  background: linear-gradient(180deg, rgba(255, 200, 51, 0.08), rgba(255, 200, 51, 0.03));
+  border-color: rgba(255, 200, 51, 0.32);
+}
+
+.setup-hint-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.setup-hint-header strong {
+  font-size: 0.88rem;
+  color: #f5f3ff;
+}
+
+.setup-hint-serato .setup-hint-header strong {
+  color: #fff5d6;
+}
+
+.setup-hint-close {
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 0.15rem;
+  line-height: 1;
+}
+
+.setup-hint-close:hover {
+  color: #f5f3ff;
+}
+
+.setup-hint-lead {
+  margin: 0 0 0.4rem;
+  color: #cfcfdc;
+}
+
+.setup-hint-lead em {
+  color: #a78bfa;
+  font-style: italic;
+}
+
+.setup-hint-steps {
+  margin: 0 0 0.5rem;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  color: #cfcfdc;
+}
+
+.setup-hint-steps strong {
+  color: #f5f3ff;
+}
+
+.setup-hint-steps kbd {
+  display: inline-block;
+  background: #20202c;
+  border: 1px solid #2e2e3a;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #e4e4e7;
+}
+
+.setup-hint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.setup-hint-actions .btn {
+  flex: 1 1 auto;
+  font-size: 0.74rem;
+  padding: 0.32rem 0.5rem;
+}
+
+.setup-hint-link {
+  text-decoration: none;
+}
+
+.setup-hint-note {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed rgba(124, 92, 255, 0.24);
+  font-size: 0.72rem;
+  color: #b0b0c0;
+}
+
+.setup-hint code {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(124, 92, 255, 0.12);
+  color: #d9d2ff;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
+.library-profile-picker {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.library-profile-heading {
+  font-size: 1rem;
+  margin: 0 0 0.35rem;
+}
+
+.library-profile-lead {
+  font-size: 0.78rem;
+  margin: 0 0 0.5rem;
+}
+
+.library-profile-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.library-profile-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "title  radio"
+    "summary radio";
+  align-items: center;
+  text-align: left;
+  background: #11111a;
+  border: 1px solid #20202c;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  color: #e4e4e7;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  font: inherit;
+}
+
+.library-profile-option:hover {
+  border-color: #3d3d4e;
+  background: #13131d;
+}
+
+.library-profile-option.selected {
+  border-color: #7c5cff;
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.1), rgba(124, 92, 255, 0.02));
+  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.45) inset;
+}
+
+.library-profile-option-title {
+  grid-area: title;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #f5f3ff;
+}
+
+.library-profile-option-summary {
+  grid-area: summary;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  margin-top: 0.15rem;
+}
+
+.library-profile-radio {
+  grid-area: radio;
+  font-size: 1rem;
+  margin-left: 0.5rem;
+  color: #7c5cff;
+}
+
+.library-source-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.4rem 0 0.5rem;
+  font-size: 0.78rem;
+  border-bottom: 1px solid #14141c;
+  margin-bottom: 0.4rem;
+}
+
+.library-source-summary-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.library-source-summary strong {
+  font-size: 0.82rem;
+}
+
+.library-source-skip {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  padding: 0.45rem 0.55rem;
+  background: rgba(124, 92, 255, 0.08);
+  border-left: 3px solid #7c5cff;
+  border-radius: 4px;
+  margin: 0.3rem 0;
+}
+
 /* ---------- Crate selection panel ---------- */
 .crate-panel {
   margin-top: 0.5rem;
@@ -1018,16 +1236,14 @@ body.overlay-mode html {
 }
 
 .decline-menu {
-  position: relative;
   display: inline-flex;
 }
 
+/* Fixed-positioned so it escapes the dock's overflow + small overlay window. */
 .decline-menu-popover {
-  position: absolute;
-  z-index: 50;
-  right: 0;
-  bottom: calc(100% + 6px);
-  min-width: 180px;
+  z-index: 9999;
+  min-width: 190px;
+  max-width: 240px;
   background: #15151c;
   border: 1px solid #2a2a36;
   border-radius: 10px;
@@ -1036,6 +1252,8 @@ body.overlay-mode html {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+  /* maxHeight is set inline by the component based on viewport space. */
+  overflow: hidden;
 }
 
 .decline-menu-title {
@@ -1045,12 +1263,27 @@ body.overlay-mode html {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #a78bfa;
+  flex: 0 0 auto;
 }
 
-.decline-menu-popover ul {
+.decline-menu-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  /* The scrollable region — items inside the menu, but not the title/skip. */
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+
+.decline-menu-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.decline-menu-list::-webkit-scrollbar-thumb {
+  background: #2a2a36;
+  border-radius: 6px;
 }
 
 .decline-menu-item {
