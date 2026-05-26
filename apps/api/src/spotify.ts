@@ -107,18 +107,25 @@ export async function getSpotifyTrackFeatures(
   };
 }
 
+// Spotify caps catalog search results per request to 10 for apps that don't
+// have Extended Quota Mode — anything higher returns 400 "Invalid limit".
+// Once Extended Quota is granted, this can be raised to 50.
+const SPOTIFY_SEARCH_MAX_LIMIT = 10;
+
 export async function searchSpotifyTracks(query: string, limit = 20): Promise<SpotifySearchHit[]> {
   const token = await getAccessToken();
   if (!token || query.trim().length < 2) return [];
 
+  const safeLimit = Math.max(1, Math.min(limit, SPOTIFY_SEARCH_MAX_LIMIT));
   const q = encodeURIComponent(query.trim());
-  const searchRes = await fetch(`${API_BASE}/search?q=${q}&type=track&limit=${Math.min(limit, 50)}`, {
+  const searchUrl = `${API_BASE}/search?q=${q}&type=track&limit=${safeLimit}`;
+  const searchRes = await fetch(searchUrl, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!searchRes.ok) {
     const errText = await searchRes.text().catch(() => "<unreadable>");
     console.error(
-      `[spotify] Search request failed: ${searchRes.status} ${searchRes.statusText} body=${errText}`,
+      `[spotify] Search request failed: url=${searchUrl} ${searchRes.status} ${searchRes.statusText} body=${errText}`,
     );
     return [];
   }
