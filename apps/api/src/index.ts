@@ -385,6 +385,64 @@ app.get("/health", (c) =>
   c.json({ ok: true, service: "q-api", spotifySearch: isSpotifyConfigured() }),
 );
 
+/**
+ * One-off debug endpoint to verify that Render actually loaded the Spotify
+ * env vars without leaking the secret itself. Returns the length + last 4
+ * chars of each value so we can compare with what we pasted into the dashboard.
+ * Remove once Spotify search is confirmed working.
+ */
+app.get("/debug/spotify", async (c) => {
+  const id = process.env.SPOTIFY_CLIENT_ID ?? "";
+  const secret = process.env.SPOTIFY_CLIENT_SECRET ?? "";
+  const idTrim = id.trim();
+  const secretTrim = secret.trim();
+
+  // Attempt a fresh token call so we can surface the exact Spotify error.
+  let tokenStatus: number | null = null;
+  let tokenError: string | null = null;
+  if (idTrim && secretTrim) {
+    try {
+      const basic = Buffer.from(`${idTrim}:${secretTrim}`).toString("base64");
+      const res = await fetch("https://accounts.spotify.com/api/token", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${basic}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "grant_type=client_credentials",
+      });
+      tokenStatus = res.status;
+      if (!res.ok) {
+        tokenError = await res.text().catch(() => "<unreadable>");
+      }
+    } catch (e) {
+      tokenError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  return c.json({
+    clientId: {
+      present: idTrim.length > 0,
+      length: id.length,
+      trimmedLength: idTrim.length,
+      hadWhitespace: id !== idTrim,
+      lastFour: idTrim.slice(-4) || null,
+    },
+    clientSecret: {
+      present: secretTrim.length > 0,
+      length: secret.length,
+      trimmedLength: secretTrim.length,
+      hadWhitespace: secret !== secretTrim,
+      lastFour: secretTrim.slice(-4) || null,
+    },
+    tokenRequest: {
+      attempted: Boolean(idTrim && secretTrim),
+      status: tokenStatus,
+      error: tokenError,
+    },
+  });
+});
+
 app.post("/sessions", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     name?: string;
