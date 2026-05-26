@@ -14,7 +14,10 @@ export function isSpotifyConfigured(): boolean {
 async function getAccessToken(): Promise<string | null> {
   const clientId = process.env.SPOTIFY_CLIENT_ID?.trim();
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) return null;
+  if (!clientId || !clientSecret) {
+    console.error("[spotify] Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET env vars");
+    return null;
+  }
 
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
     return cachedToken.accessToken;
@@ -29,10 +32,21 @@ async function getAccessToken(): Promise<string | null> {
     },
     body: "grant_type=client_credentials",
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // Surface the real Spotify error so Render logs make the cause obvious
+    // (invalid creds, app suspended, wrong client_secret, etc.).
+    const errText = await res.text().catch(() => "<unreadable>");
+    console.error(
+      `[spotify] Token request failed: ${res.status} ${res.statusText} body=${errText}`,
+    );
+    return null;
+  }
 
   const data = (await res.json()) as { access_token?: string; expires_in?: number };
-  if (!data.access_token) return null;
+  if (!data.access_token) {
+    console.error("[spotify] Token response missing access_token", data);
+    return null;
+  }
 
   cachedToken = {
     accessToken: data.access_token,
@@ -101,13 +115,22 @@ export async function searchSpotifyTracks(query: string, limit = 20): Promise<Sp
   const searchRes = await fetch(`${API_BASE}/search?q=${q}&type=track&limit=${Math.min(limit, 50)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!searchRes.ok) return [];
+  if (!searchRes.ok) {
+    const errText = await searchRes.text().catch(() => "<unreadable>");
+    console.error(
+      `[spotify] Search request failed: ${searchRes.status} ${searchRes.statusText} body=${errText}`,
+    );
+    return [];
+  }
 
   const searchJson = (await searchRes.json()) as {
     tracks?: { items?: SpotifyTrackItem[] };
   };
   const items = searchJson.tracks?.items ?? [];
-  if (items.length === 0) return [];
+  if (items.length === 0) {
+    console.warn(`[spotify] Search "${query}" returned 0 tracks`);
+    return [];
+  }
 
   const ids = items.map((t) => t.id).join(",");
   const featRes = await fetch(`${API_BASE}/audio-features?ids=${ids}`, {
