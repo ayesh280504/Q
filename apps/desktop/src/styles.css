@@ -920,6 +920,41 @@ body.overlay-mode html {
   margin: 0.3rem 0;
 }
 
+.sync-poll-select {
+  width: 100%;
+  max-width: 12rem;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #2a2a3a;
+  background: #12121a;
+  color: inherit;
+}
+
+.sync-hint {
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin: 0.35rem 0 0;
+  line-height: 1.35;
+}
+
+.booth-mode-toggle {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.booth-mode-btn {
+  flex: 1;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.booth-mode-btn.active {
+  border-color: #7c5cff;
+  background: rgba(124, 92, 255, 0.15);
+}
+
 /* ---------- Crate selection panel ---------- */
 .crate-panel {
   margin-top: 0.5rem;

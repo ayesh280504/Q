@@ -261,3 +261,18 @@ input {
   color: #fca5a5;
   margin-top: 0.5rem;
 }
+
+.offline-booth {
+  text-align: center;
+  padding-top: 2.5rem;
+}
+
+.offline-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.offline-lead {
+  margin-bottom: 0.75rem;
+}

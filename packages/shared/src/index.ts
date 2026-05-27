@@ -141,6 +141,16 @@ export interface SyncStatus {
   librarySynced: boolean;
 }
 
+/** Pushed by desktop on track change; read by Q Booth mobile. */
+export interface SessionLiveStatus {
+  sessionId: string;
+  title: string;
+  artist: string;
+  bpm?: number;
+  key?: string;
+  updatedAt: string;
+}
+
 export interface CreateSessionResponse {
   session: Session;
   djToken: string;

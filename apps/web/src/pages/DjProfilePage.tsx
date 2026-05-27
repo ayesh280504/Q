@@ -14,6 +14,8 @@ import {
 import type { DjProfilePublic } from "@q/shared";
 import "../community.css";
 
+const CROWD_URL = import.meta.env.VITE_Q_CROWD_URL || "http://localhost:5173";
+
 export default function DjProfilePage() {
   const { handle } = useParams<{ handle: string }>();
   const { signedIn, profile: me } = useAuth();
@@ -73,9 +75,28 @@ export default function DjProfilePage() {
               {profile.bio && <p className="bio">{profile.bio}</p>}
               <DjSocialBar links={profile.socialLinks} />
               {isSelf && (
-                <p className="muted small" style={{ marginTop: "0.75rem" }}>
-                  <Link to="/settings">Edit profile & socials</Link>
-                </p>
+                <>
+                  <div className="permanent-qr-card">
+                    <h2 className="section-label">Permanent booth QR</h2>
+                    <p className="muted small">
+                      Print once — guests scan this at every gig. When you start a session in Q, it
+                      unlocks tonight&apos;s request page automatically.
+                    </p>
+                    <code className="permanent-qr-url">{CROWD_URL}/dj/{profile.handle}</code>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(`${CROWD_URL}/dj/${profile.handle}`);
+                      }}
+                    >
+                      Copy link
+                    </button>
+                  </div>
+                  <p className="muted small" style={{ marginTop: "0.75rem" }}>
+                    <Link to="/settings">Edit profile & socials</Link>
+                  </p>
+                </>
               )}
               {!isSelf && (
                 <button

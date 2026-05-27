@@ -27,6 +27,10 @@ const STEPS = [
     title: "Offline booth",
     body: "Accept and decline work offline. When you have signal, Sync pushes everything to the server.",
   },
+  {
+    title: "Local-first",
+    body: "Your library and mixes never upload to Q. Crowd search uses titles only. Use Booth only mode if you want zero background sync during the set.",
+  },
 ];
 
 export function hasCompletedDesktopTour(): boolean {

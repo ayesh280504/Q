@@ -34,6 +34,7 @@ loadRootEnv();
 import { buildProSuggestions } from "./ai-suggestions.js";
 import { buildSuggestions } from "./suggestions.js";
 import {
+  getDjCurrentlyPlaying,
   getSpotifyTrackFeatures,
   isSpotifyConfigured,
   searchSpotifyTracks,
@@ -48,6 +49,7 @@ import type {
   SyncStatus,
   TrackRecord,
   TrackSearchHit,
+  SessionLiveStatus,
   TransitionSuggestion,
 } from "@q/shared";
 import { sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
@@ -385,126 +387,32 @@ app.get("/health", (c) =>
   c.json({ ok: true, service: "q-api", spotifySearch: isSpotifyConfigured() }),
 );
 
-/**
- * One-off debug endpoint to verify that Render actually loaded the Spotify
- * env vars without leaking the secret itself. Returns the length + last 4
- * chars of each value so we can compare with what we pasted into the dashboard.
- * Remove once Spotify search is confirmed working.
- */
-app.get("/debug/spotify", async (c) => {
-  const id = process.env.SPOTIFY_CLIENT_ID ?? "";
-  const secret = process.env.SPOTIFY_CLIENT_SECRET ?? "";
-  const idTrim = id.trim();
-  const secretTrim = secret.trim();
-
-  // Attempt a fresh token call so we can surface the exact Spotify error.
-  let tokenStatus: number | null = null;
-  let tokenError: string | null = null;
-  if (idTrim && secretTrim) {
-    try {
-      const basic = Buffer.from(`${idTrim}:${secretTrim}`).toString("base64");
-      const res = await fetch("https://accounts.spotify.com/api/token", {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${basic}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: "grant_type=client_credentials",
-      });
-      tokenStatus = res.status;
-      if (!res.ok) {
-        tokenError = await res.text().catch(() => "<unreadable>");
-      }
-    } catch (e) {
-      tokenError = e instanceof Error ? e.message : String(e);
-    }
+/** Phase 1.5 — Spotify booth parity stub (OAuth currently-playing TBD). */
+app.get("/sessions/:sessionId/spotify/now-playing", async (c) => {
+  const sessionId = c.req.param("sessionId");
+  if (!requireDj(c, sessionId)) return c.json({ error: "Unauthorized" }, 401);
+  const sessRow = db
+    .prepare(`SELECT dj_user_id FROM sessions WHERE id = ?`)
+    .get(sessionId) as { dj_user_id: string | null } | undefined;
+  if (!sessRow?.dj_user_id) {
+    return c.json({
+      configured: isSpotifyConfigured(),
+      oauthLinked: false,
+      playing: null,
+      hint: "Sign in on desktop to link your DJ account.",
+    });
   }
-
-  // Once we have a token, also do an actual search so we can see what comes
-  // back from Spotify when called from inside Render's network.
-  let searchStatus: number | null = null;
-  let searchTotal: number | null = null;
-  let searchItemCount: number | null = null;
-  let searchError: string | null = null;
-  let searchSampleTitle: string | null = null;
-  let wrappedHits: number | null = null;
-  let wrappedError: string | null = null;
-  if (tokenStatus === 200) {
-    try {
-      const tokRes = await fetch("https://accounts.spotify.com/api/token", {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${idTrim}:${secretTrim}`).toString("base64")}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: "grant_type=client_credentials",
-      });
-      const tokJson = (await tokRes.json()) as { access_token?: string };
-      const tok = tokJson.access_token;
-      if (tok) {
-        const sRes = await fetch(
-          "https://api.spotify.com/v1/search?q=drake&type=track&limit=3",
-          { headers: { Authorization: `Bearer ${tok}` } },
-        );
-        searchStatus = sRes.status;
-        if (sRes.ok) {
-          const sj = (await sRes.json()) as {
-            tracks?: { items?: Array<{ name?: string }>; total?: number };
-          };
-          searchTotal = sj.tracks?.total ?? null;
-          searchItemCount = sj.tracks?.items?.length ?? null;
-          searchSampleTitle = sj.tracks?.items?.[0]?.name ?? null;
-        } else {
-          searchError = await sRes.text().catch(() => "<unreadable>");
-        }
-      }
-    } catch (e) {
-      searchError = e instanceof Error ? e.message : String(e);
-    }
-
-    // Now exercise the production code path so we can see what the wrapper does.
-    // Use the same limit as the real route (20) to rule out any per-limit edge case.
-    try {
-      const hits = await searchSpotifyTracks("drake", 20);
-      wrappedHits = hits.length;
-    } catch (e) {
-      wrappedError = e instanceof Error ? `${e.message} :: ${e.stack ?? ""}` : String(e);
-    }
-  }
-
+  const playing = await getDjCurrentlyPlaying(sessRow.dj_user_id);
   return c.json({
-    clientId: {
-      present: idTrim.length > 0,
-      length: id.length,
-      trimmedLength: idTrim.length,
-      hadWhitespace: id !== idTrim,
-      lastFour: idTrim.slice(-4) || null,
-    },
-    clientSecret: {
-      present: secretTrim.length > 0,
-      length: secret.length,
-      trimmedLength: secretTrim.length,
-      hadWhitespace: secret !== secretTrim,
-      lastFour: secretTrim.slice(-4) || null,
-    },
-    tokenRequest: {
-      attempted: Boolean(idTrim && secretTrim),
-      status: tokenStatus,
-      error: tokenError,
-    },
-    rawSearch: {
-      status: searchStatus,
-      total: searchTotal,
-      itemCount: searchItemCount,
-      sampleTitle: searchSampleTitle,
-      error: searchError,
-    },
-    wrappedSearch: {
-      hitCount: wrappedHits,
-      error: wrappedError,
-    },
+    configured: isSpotifyConfigured(),
+    oauthLinked: false,
+    playing,
+    hint: playing
+      ? undefined
+      : "Spotify OAuth for booth tracking ships in v0.1.9 — use Serato History or desktop live push for now.",
   });
 });
+
 
 app.post("/sessions", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
@@ -743,11 +651,10 @@ app.get("/sessions/:code/tracks/search", async (c) => {
     `${normalizeTitle(title)}|${normalizeTitle(artist)}`;
 
   if (streaming) {
+    // Wrapped in try/catch so a Spotify outage never breaks crowd search —
+    // we still want to return any local-library matches we have.
     try {
       const spotify = await searchSpotifyTracks(q, limit);
-      console.log(
-        `[search] q="${q}" limit=${limit} streaming=true spotify.length=${spotify.length}`,
-      );
       for (const t of spotify) {
         const dk = dedupeKey(t.title, t.artist);
         seen.add(dk);
@@ -844,9 +751,6 @@ app.get("/sessions/:code/tracks/search", async (c) => {
     });
   }
 
-  console.log(
-    `[search] q="${q}" final hits=${hits.length} returning=${Math.min(hits.length, limit)}`,
-  );
   return c.json({
     results: hits.slice(0, limit),
     mode: streaming ? ("spotify" as const) : ("library" as const),
@@ -894,6 +798,83 @@ app.post("/sessions/:sessionId/played-tracks", async (c) => {
   tx();
 
   return c.json({ synced: tracks.length });
+});
+
+/** Desktop pushes now-playing for Q Booth mobile (tiny JSON, ~1KB). */
+app.post("/sessions/:sessionId/live-status", async (c) => {
+  const sessionId = c.req.param("sessionId");
+  if (!requireDj(c, sessionId)) return c.json({ error: "Unauthorized" }, 401);
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    title?: string;
+    artist?: string;
+    bpm?: number;
+    key?: string;
+  };
+  const title = body.title?.trim();
+  const artist = body.artist?.trim();
+  if (!title) return c.json({ error: "title required" }, 400);
+
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO session_live_status (session_id, title, artist, bpm, key, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(session_id) DO UPDATE SET
+       title = excluded.title,
+       artist = excluded.artist,
+       bpm = excluded.bpm,
+       key = excluded.key,
+       updated_at = excluded.updated_at`,
+  ).run(sessionId, title, artist || "Unknown Artist", body.bpm ?? null, body.key ?? null, now);
+
+  const status: SessionLiveStatus = {
+    sessionId,
+    title,
+    artist: artist || "Unknown Artist",
+    bpm: body.bpm,
+    key: body.key,
+    updatedAt: now,
+  };
+  return c.json({ status });
+});
+
+app.get("/sessions/:sessionId/live-status", (c) => {
+  const sessionId = c.req.param("sessionId");
+  const row = db
+    .prepare(
+      `SELECT session_id, title, artist, bpm, key, updated_at FROM session_live_status WHERE session_id = ?`,
+    )
+    .get(sessionId) as
+    | {
+        session_id: string;
+        title: string;
+        artist: string;
+        bpm: number | null;
+        key: string | null;
+        updated_at: string;
+      }
+    | undefined;
+  if (!row) return c.json({ status: null as SessionLiveStatus | null });
+  return c.json({
+    status: {
+      sessionId: row.session_id,
+      title: row.title,
+      artist: row.artist,
+      bpm: row.bpm ?? undefined,
+      key: row.key ?? undefined,
+      updatedAt: row.updated_at,
+    } satisfies SessionLiveStatus,
+  });
+});
+
+/** Marks session not live — unlocks permanent QR offline state. */
+app.post("/sessions/:sessionId/end", async (c) => {
+  const sessionId = c.req.param("sessionId");
+  if (!requireDj(c, sessionId)) return c.json({ error: "Unauthorized" }, 401);
+  const now = new Date().toISOString();
+  db.prepare(`UPDATE sessions SET is_live = 0, ended_at = ? WHERE id = ?`).run(now, sessionId);
+  db.prepare(`DELETE FROM session_live_status WHERE session_id = ?`).run(sessionId);
+  return c.json({ ok: true, endedAt: now });
 });
 
 app.post("/sessions/:code/requests", async (c) => {

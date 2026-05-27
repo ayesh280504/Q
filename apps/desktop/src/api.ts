@@ -3,18 +3,32 @@ import type {
   CrowdRequest,
   PlanTier,
   Session,
+  SessionLiveStatus,
   SessionSettings,
   SyncStatus,
   TrackRecord,
   TransitionSuggestion,
 } from "@q/shared";
 import { sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
+import { fetchWithTimeout } from "./lib/fetchWithTimeout";
 
 const API_BASE = import.meta.env.VITE_Q_API_URL || "http://localhost:8787";
 
+/** Booth sync / accept-decision — fail fast so bad Wi‑Fi never blocks the UI. */
+export const API_TIMEOUT_SYNC_MS = 4_000;
+/** Large library upload — allow more time but still bounded. */
+export const API_TIMEOUT_LIBRARY_MS = 45_000;
+/** Default for session start, settings, etc. */
+export const API_TIMEOUT_DEFAULT_MS = 12_000;
+
 export async function api<T>(
   path: string,
-  init?: RequestInit & { token?: string; plan?: PlanTier; accountToken?: string },
+  init?: RequestInit & {
+    token?: string;
+    plan?: PlanTier;
+    accountToken?: string;
+    timeoutMs?: number;
+  },
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -23,9 +37,15 @@ export async function api<T>(
   if (init?.plan) headers["X-Q-Plan"] = init.plan;
   if (init?.accountToken) headers["X-Q-Account-Token"] = init.accountToken;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: { ...headers, ...(init?.headers as Record<string, string>) },
+  const { timeoutMs, token: _t, plan: _p, accountToken: _a, ...fetchInit } = init ?? {};
+  void _t;
+  void _p;
+  void _a;
+
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, {
+    ...fetchInit,
+    timeoutMs: timeoutMs ?? API_TIMEOUT_DEFAULT_MS,
+    headers: { ...headers, ...(fetchInit.headers as Record<string, string>) },
   });
 
   if (!res.ok) {
@@ -89,17 +109,24 @@ export function syncLibrary(sessionId: string, token: string, tracks: unknown[])
   return api<{ synced: number }>(`/sessions/${sessionId}/library`, {
     method: "POST",
     token,
+    timeoutMs: API_TIMEOUT_LIBRARY_MS,
     body: JSON.stringify({ tracks: cleaned }),
   });
 }
 
 export function fetchRequests(sessionId: string, token: string, since?: string) {
   const q = since ? `?since=${encodeURIComponent(since)}` : "";
-  return api<{ requests: CrowdRequest[] }>(`/sessions/${sessionId}/requests${q}`, { token });
+  return api<{ requests: CrowdRequest[] }>(`/sessions/${sessionId}/requests${q}`, {
+    token,
+    timeoutMs: API_TIMEOUT_SYNC_MS,
+  });
 }
 
 export function fetchSyncStatus(sessionId: string, token: string) {
-  return api<SyncStatus>(`/sessions/${sessionId}/sync-status`, { token });
+  return api<SyncStatus>(`/sessions/${sessionId}/sync-status`, {
+    token,
+    timeoutMs: API_TIMEOUT_SYNC_MS,
+  });
 }
 
 export function syncPlayedTracks(
@@ -111,6 +138,27 @@ export function syncPlayedTracks(
     method: "POST",
     token,
     body: JSON.stringify({ tracks }),
+  });
+}
+
+export function pushLiveStatus(
+  sessionId: string,
+  token: string,
+  payload: { title: string; artist: string; bpm?: number; key?: string },
+) {
+  return api<{ status: SessionLiveStatus }>(`/sessions/${sessionId}/live-status`, {
+    method: "POST",
+    token,
+    timeoutMs: API_TIMEOUT_SYNC_MS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function endSession(sessionId: string, token: string) {
+  return api<{ ok: boolean; endedAt: string }>(`/sessions/${sessionId}/end`, {
+    method: "POST",
+    token,
+    timeoutMs: API_TIMEOUT_SYNC_MS,
   });
 }
 
@@ -126,6 +174,12 @@ export function updateRequest(
   if (status === "declined" && declineReason) payload.declineReason = declineReason;
   return api<{ request: CrowdRequest; suggestions: TransitionSuggestion[] }>(
     `/sessions/${sessionId}/requests/${requestId}`,
-    { method: "PATCH", token, plan, body: JSON.stringify(payload) },
+    {
+      method: "PATCH",
+      token,
+      plan,
+      timeoutMs: API_TIMEOUT_SYNC_MS,
+      body: JSON.stringify(payload),
+    },
   );
 }

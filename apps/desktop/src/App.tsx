@@ -13,6 +13,8 @@ import {
   syncLibrary,
   syncPlayedTracks,
   updateRequest,
+  endSession,
+  pushLiveStatus,
   updateSessionSettings,
 } from "./api";
 import { importRekordboxAuto, importRekordboxFromDialog } from "./rekordbox";
@@ -90,6 +92,22 @@ import {
   runSync,
 } from "./sync/engine";
 import { getDecisions, outboxCounts, queueDecision } from "./sync/outbox";
+import {
+  loadSyncPollPreset,
+  saveSyncPollPreset,
+  syncPollIntervalMs,
+  syncPollPresetMeta,
+  SYNC_POLL_PRESETS,
+  type SyncPollPreset,
+} from "./lib/syncSettings";
+import {
+  BOOTH_WORK_MODE_META,
+  loadBoothWorkMode,
+  saveBoothWorkMode,
+  type BoothWorkMode,
+} from "./lib/boothWorkMode";
+import { loadAutostartWanted, saveAutostartWanted } from "./lib/autostartPref";
+import { useDjSoftwareSentinel } from "./hooks/useDjSoftwareSentinel";
 
 const STORAGE_KEY = "q-gig";
 const DJ_NAME_KEY = "q-dj-display-name";
@@ -207,6 +225,12 @@ export default function App() {
   const [gig, setGig] = useState<GigState | null>(loadGig);
   const [requests, setRequests] = useState<CrowdRequest[]>([]);
   const [online, setOnline] = useState(navigator.onLine);
+  const [syncPollPreset, setSyncPollPreset] = useState<SyncPollPreset>(loadSyncPollPreset);
+  const [boothWorkMode, setBoothWorkMode] = useState<BoothWorkMode>(loadBoothWorkMode);
+  const [autostartWanted, setAutostartWanted] = useState(loadAutostartWanted);
+  const djSoftwareSentinel = useDjSoftwareSentinel(Boolean(gig));
+  const [lastSyncOkAt, setLastSyncOkAt] = useState<number | null>(null);
+  const [, setSyncTick] = useState(0);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -433,6 +457,9 @@ export default function App() {
         if (ls) setLastSync(ls);
         setServerPending(result.pendingOnServer);
         refreshOutbox();
+        if (result.pullOk || result.pushedDecisions > 0 || result.librarySynced) {
+          setLastSyncOkAt(Date.now());
+        }
         return result;
       } catch {
         return null;
@@ -442,11 +469,31 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!gig || !online) return;
-    doSync(false);
-    const id = setInterval(() => doSync(false), 4000);
+    if (!gig || !online || boothWorkMode === "booth") return;
+    const ms = syncPollIntervalMs(syncPollPreset);
+    void doSync(false);
+    const id = setInterval(() => void doSync(false), ms);
     return () => clearInterval(id);
-  }, [gig, online, doSync]);
+  }, [gig, online, doSync, syncPollPreset, boothWorkMode]);
+
+  useEffect(() => {
+    if (!gig || !online || !nowPlaying?.title) return;
+    void pushLiveStatus(gig.sessionId, gig.djToken, {
+      title: nowPlaying.title,
+      artist: nowPlaying.artist,
+      bpm: nowPlaying.bpm,
+      key: nowPlaying.key,
+    }).catch(() => {
+      /* phone HUD is best-effort */
+    });
+  }, [gig, online, nowPlaying?.title, nowPlaying?.artist, nowPlaying?.bpm, nowPlaying?.key]);
+
+  /** Refresh "last synced X ago" label every 10s without polling the API. */
+  useEffect(() => {
+    if (!lastSyncOkAt) return;
+    const id = setInterval(() => setSyncTick((t) => t + 1), 10_000);
+    return () => clearInterval(id);
+  }, [lastSyncOkAt]);
 
   useEffect(() => {
     if (!online || !gig) return;
@@ -705,14 +752,24 @@ export default function App() {
       if (result.pulled > 0) parts.push(`${result.pulled} new`);
       if (result.pushedDecisions > 0) parts.push(`${result.pushedDecisions} decisions sent`);
       if (result.librarySynced) parts.push("library uploaded");
+      const pullNote = result.pullOk ? "" : " (couldn't refresh requests — weak signal; your queue is unchanged)";
       setMessage(
         parts.length > 0
-          ? `Synced: ${parts.join(", ")}. ${result.pendingOnServer} pending on server.`
-          : `Up to date. ${result.pendingOnServer} pending on server.`,
+          ? `Synced: ${parts.join(", ")}. ${result.pendingOnServer} pending on server.${pullNote}`
+          : `Up to date. ${result.pendingOnServer} pending on server.${pullNote}`,
       );
     } else {
-      setMessage("Sync failed — try again in a few seconds.");
+      setMessage("Sync timed out — Serato keeps playing. Try again when signal improves.");
     }
+  }
+
+  function formatLastSyncAgo(): string | null {
+    if (!lastSyncOkAt) return null;
+    const sec = Math.max(0, Math.floor((Date.now() - lastSyncOkAt) / 1000));
+    if (sec < 15) return "just now";
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    return `${min}m ago`;
   }
 
   async function startGig() {
@@ -983,7 +1040,6 @@ export default function App() {
     declineReason?: DeclineReason,
   ) {
     if (!gig) return;
-    setBusy(true);
 
     setRequests((prev) =>
       prev.map((r) =>
@@ -993,27 +1049,44 @@ export default function App() {
       ),
     );
 
+    const applyAccepted = async (req: CrowdRequest) => {
+      addToQueue(req);
+      await writeAcceptedToCrate(req);
+    };
+
     try {
       if (online) {
-        const res = await updateRequest(
+        void updateRequest(
           gig.sessionId,
           gig.djToken,
           requestId,
           status,
           tierRef.current,
           declineReason,
-        );
-        setRequests((prev) => prev.map((r) => (r.id === requestId ? res.request : r)));
-        if (status === "accepted") {
-          addToQueue(res.request);
-          await writeAcceptedToCrate(res.request);
-          setProHints(
-            tierRef.current === "pro" ? res.suggestions.filter((s) => s.pro) : [],
-          );
-        } else {
-          removeFromQueue(requestId);
-          setProHints([]);
-        }
+        )
+          .then(async (res) => {
+            setRequests((prev) => prev.map((r) => (r.id === requestId ? res.request : r)));
+            if (status === "accepted") {
+              await applyAccepted(res.request);
+              setProHints(
+                tierRef.current === "pro" ? res.suggestions.filter((s) => s.pro) : [],
+              );
+            } else {
+              removeFromQueue(requestId);
+              setProHints([]);
+            }
+          })
+          .catch(() => {
+            queueDecision({ sessionId: gig.sessionId, requestId, status, declineReason });
+            refreshOutbox();
+            if (status === "accepted") {
+              const req = requestsRef.current.find((r) => r.id === requestId);
+              if (req) void applyAccepted({ ...req, status: "accepted" });
+            } else {
+              removeFromQueue(requestId);
+            }
+            setMessage("Queued — tap Sync now when you have signal.");
+          });
       } else {
         queueDecisionIfOffline(gig.sessionId, requestId, status, false, declineReason);
         refreshOutbox();
@@ -1035,16 +1108,11 @@ export default function App() {
       refreshOutbox();
       if (status === "accepted") {
         const req = requestsRef.current.find((r) => r.id === requestId);
-        if (req) {
-          addToQueue({ ...req, status: "accepted" });
-          await writeAcceptedToCrate(req);
-        }
+        if (req) void applyAccepted({ ...req, status: "accepted" });
       } else {
         removeFromQueue(requestId);
       }
       setMessage("Queued — tap Sync now when you have signal.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -1208,7 +1276,27 @@ export default function App() {
         )}
 
         {!dockMode && (
-          <h4 className="settings-section-label">DJ software</h4>
+          <>
+            <h4 className="settings-section-label">DJ software</h4>
+            {djSoftwareSentinel && (
+              <p className="muted sync-hint">
+                {djSoftwareSentinel.any_running
+                  ? "Serato/Rekordbox detected — live tracking can run."
+                  : "Open Serato or Rekordbox to start file watchers."}
+              </p>
+            )}
+            <label className="field-label autostart-row">
+              <input
+                type="checkbox"
+                checked={autostartWanted}
+                onChange={(e) => {
+                  setAutostartWanted(e.target.checked);
+                  saveAutostartWanted(e.target.checked);
+                }}
+              />
+              Start Q with Windows (registry hook in Phase 1C)
+            </label>
+          </>
         )}
         <div className="software-tabs">
           <button
@@ -1413,6 +1501,47 @@ export default function App() {
             <button type="button" className={`btn ghost ${pinWindow ? "active-pin" : ""}`} onClick={togglePinWindow}>
               {pinWindow ? "Unpin window" : "Pin on top"}
             </button>
+            <h4 className="settings-section-label">Work mode</h4>
+            <div className="booth-mode-toggle" role="group" aria-label="Booth work mode">
+              {(["crowd", "booth"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`btn ghost booth-mode-btn ${boothWorkMode === mode ? "active" : ""}`}
+                  onClick={() => {
+                    setBoothWorkMode(mode);
+                    saveBoothWorkMode(mode);
+                  }}
+                >
+                  {BOOTH_WORK_MODE_META[mode].label}
+                </button>
+              ))}
+            </div>
+            <p className="muted sync-hint">{BOOTH_WORK_MODE_META[boothWorkMode].hint}</p>
+            <h4 className="settings-section-label">Crowd sync</h4>
+            <p className="muted sync-hint">
+              Requests use your hotspot in the background — never Serato. If Wi‑Fi drops, accept/decline
+              still works offline. Your music files never leave this laptop.
+            </p>
+            <label className="sync-poll-label">
+              Check for new requests
+              <select
+                className="sync-poll-select"
+                value={syncPollPreset}
+                onChange={(e) => {
+                  const next = e.target.value as SyncPollPreset;
+                  setSyncPollPreset(next);
+                  saveSyncPollPreset(next);
+                }}
+              >
+                {SYNC_POLL_PRESETS.map((p) => (
+                  <option key={p} value={p}>
+                    {syncPollPresetMeta(p).label}
+                  </option>
+                ))}
+              </select>
+              <small className="muted">{syncPollPresetMeta(syncPollPreset).hint}</small>
+            </label>
             <h4 className="settings-section-label">Library</h4>
             <div className="library-source-summary">
               <span className="muted library-source-summary-label">Library profile:</span>
@@ -1530,6 +1659,11 @@ export default function App() {
             <button
               className="btn ghost"
               onClick={() => {
+                if (gig && online) {
+                  void endSession(gig.sessionId, gig.djToken).catch(() => {
+                    /* local clear still runs */
+                  });
+                }
                 setGig(null);
                 saveGig(null);
                 setRequests([]);
@@ -1545,9 +1679,18 @@ export default function App() {
         )}
 
         <div className={`status ${online ? "online" : "offline"}`}>
-          {online
-            ? "Online — auto-syncing"
-            : "Offline — booth mode. Decisions saved locally."}
+          {online ? (
+            boothWorkMode === "booth" ? (
+              <>Online — booth only (manual Sync){formatLastSyncAgo() ? ` · last OK ${formatLastSyncAgo()}` : ""}</>
+            ) : (
+              <>
+                Online — crowd sync every {syncPollIntervalMs(syncPollPreset) / 1000}s
+                {formatLastSyncAgo() ? ` · last OK ${formatLastSyncAgo()}` : ""}
+              </>
+            )
+          ) : (
+            "Offline — decisions saved locally; music unaffected."
+          )}
         </div>
         {gig && (outbox.decisions > 0 || outbox.library) && (
           <p className="outbox-badge">
@@ -1605,6 +1748,22 @@ export default function App() {
                 ))}
               </div>
             )}
+            {gig &&
+              (!online || boothWorkMode === "booth") &&
+              (tier !== "pro" || proHints.length === 0) && (
+                <div className="queue-suggestions">
+                  {localSuggestionsOffline({
+                    nowPlaying,
+                    queueCount: queue.length,
+                    boothOnly: boothWorkMode === "booth",
+                  }).map((s, i) => (
+                    <div key={i} className="suggestion">
+                      <strong>{s.label}</strong>
+                      <span>{s.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             {!gig && <p className="pane-empty muted">Start a gig first.</p>}
             {gig && queue.length === 0 && (
               <p className="pane-empty muted">Empty — accept a request below.</p>

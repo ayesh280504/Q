@@ -90,6 +90,20 @@ ensureColumn(
   "library_source",
   `ALTER TABLE sessions ADD COLUMN library_source TEXT`,
 );
+ensureColumn("sessions", "is_live", `ALTER TABLE sessions ADD COLUMN is_live INTEGER NOT NULL DEFAULT 1`);
+ensureColumn("sessions", "ended_at", `ALTER TABLE sessions ADD COLUMN ended_at TEXT`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS session_live_status (
+    session_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    bpm REAL,
+    key TEXT,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+  );
+`);
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_requests_guest ON requests(session_id, guest_id);

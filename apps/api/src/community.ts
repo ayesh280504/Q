@@ -478,22 +478,34 @@ community.post("/mixes/:mixId/play", (c) => {
   return c.json({ ok: true });
 });
 
-/** Latest active gig code for a DJ handle (crowd redirect). */
+/** Latest gig for a DJ handle — used by permanent QR `/dj/:handle`. */
 community.get("/djs/:handle/active-gig", (c) => {
   const handle = normalizeHandle(c.req.param("handle"));
   if (!handle) return c.json({ error: "DJ not found" }, 404);
-  const user = db.prepare(`SELECT id FROM users WHERE handle = ?`).get(handle) as
-    | { id: string }
-    | undefined;
+  const user = db
+    .prepare(`SELECT id, display_name FROM users WHERE handle = ?`)
+    .get(handle) as { id: string; display_name: string | null } | undefined;
   if (!user) return c.json({ error: "DJ not found" }, 404);
 
   const session = db
     .prepare(
-      `SELECT code, display_name FROM sessions WHERE dj_user_id = ? ORDER BY created_at DESC LIMIT 1`,
+      `SELECT code, display_name, is_live FROM sessions
+       WHERE dj_user_id = ? AND is_live = 1
+       ORDER BY created_at DESC LIMIT 1`,
     )
-    .get(user.id) as { code: string; display_name: string | null } | undefined;
-  if (!session) return c.json({ error: "No active gig" }, 404);
-  return c.json({ code: session.code, displayName: session.display_name });
+    .get(user.id) as { code: string; display_name: string | null; is_live: number } | undefined;
+
+  const displayName = user.display_name?.trim() || handle;
+  if (!session) {
+    return c.json({ live: false, handle, displayName, code: null as string | null });
+  }
+
+  return c.json({
+    live: true,
+    handle,
+    displayName: session.display_name?.trim() || displayName,
+    code: session.code,
+  });
 });
 
 export { getUserByToken };

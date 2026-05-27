@@ -134,6 +134,24 @@
   color: #7c3aed;
 }
 
+.permanent-qr-card {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid #2a2a3a;
+  border-radius: 10px;
+  background: rgba(124, 92, 255, 0.06);
+}
+
+.permanent-qr-url {
+  display: block;
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.85rem;
+  word-break: break-all;
+  background: #12121a;
+  border-radius: 6px;
+}
+
 .profile-header .bio {
   margin-top: 0.75rem;
   line-height: 1.5;

@@ -11,6 +11,20 @@ export function isSpotifyConfigured(): boolean {
   return Boolean(process.env.SPOTIFY_CLIENT_ID?.trim() && process.env.SPOTIFY_CLIENT_SECRET?.trim());
 }
 
+/**
+ * Phase 1.5 — DJ OAuth currently-playing (not wired yet).
+ * Returns null until per-DJ refresh tokens are stored server-side.
+ */
+export async function getDjCurrentlyPlaying(_djUserId: string): Promise<{
+  title: string;
+  artist: string;
+  bpm?: number;
+  key?: string;
+} | null> {
+  void _djUserId;
+  return null;
+}
+
 async function getAccessToken(): Promise<string | null> {
   const clientId = process.env.SPOTIFY_CLIENT_ID?.trim();
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET?.trim();

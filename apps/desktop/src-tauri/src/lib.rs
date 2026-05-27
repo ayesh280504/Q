@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 mod prolink;
+mod sentinel;
 
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
@@ -324,6 +325,7 @@ pub fn run() {
             write_q_requests_playlist,
             write_serato_q_requests_crate,
             prolink::prolink_request_status,
+            sentinel::detect_dj_software_running,
         ]);
     prolink::install(builder)
         .run(tauri::generate_context!())
