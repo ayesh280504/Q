@@ -8,7 +8,7 @@ type DjSoftwareStatus = {
 };
 
 /** Polls Windows tasklist for Serato / Rekordbox (Phase 1C). */
-export function useDjSoftwareSentinel(enabled: boolean, intervalMs = 5000) {
+export function useDjSoftwareSentinel(enabled: boolean, intervalMs = 30_000) {
   const [status, setStatus] = useState<DjSoftwareStatus | null>(null);
 
   useEffect(() => {

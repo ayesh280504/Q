@@ -8,29 +8,37 @@ pub struct DjSoftwareStatus {
 }
 
 #[cfg(target_os = "windows")]
-fn process_running(image_name: &str) -> bool {
+fn detect_processes() -> (bool, bool) {
+    use std::os::windows::process::CommandExt;
+
+    // Without this, each tasklist spawn flashes a visible cmd window on Windows GUI apps.
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
     let output = std::process::Command::new("tasklist")
-        .args(["/FI", &format!("IMAGENAME eq {image_name}"), "/NH"])
+        .args(["/NH"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output();
+
     match output {
         Ok(o) => {
-            let text = String::from_utf8_lossy(&o.stdout);
-            text.to_ascii_lowercase().contains(&image_name.to_ascii_lowercase())
+            let text = String::from_utf8_lossy(&o.stdout).to_ascii_lowercase();
+            let serato = text.contains("serato dj pro.exe");
+            let rekordbox = text.contains("rekordbox.exe");
+            (serato, rekordbox)
         }
-        Err(_) => false,
+        Err(_) => (false, false),
     }
 }
 
 #[cfg(not(target_os = "windows"))]
-fn process_running(_image_name: &str) -> bool {
-    false
+fn detect_processes() -> (bool, bool) {
+    (false, false)
 }
 
-/// Poll whether Serato or Rekordbox is running (Windows tasklist).
+/// Poll whether Serato or Rekordbox is running (Windows tasklist, no console flash).
 #[tauri::command]
 pub fn detect_dj_software_running() -> DjSoftwareStatus {
-    let serato = process_running("Serato DJ Pro.exe") || process_running("serato dj pro.exe");
-    let rekordbox = process_running("rekordbox.exe");
+    let (serato, rekordbox) = detect_processes();
     DjSoftwareStatus {
         serato,
         rekordbox,

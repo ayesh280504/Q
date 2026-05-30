@@ -1,6 +1,6 @@
 [package]
 name = "q-desktop"
-version = "0.1.8"
+version = "0.1.9"
 description = "Q DJ Command Center"
 authors = ["Q"]
 edition = "2021"
