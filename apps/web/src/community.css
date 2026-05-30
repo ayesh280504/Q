@@ -42,6 +42,20 @@
   padding: 2rem 1.5rem 4rem;
 }
 
+@media (max-width: 768px) {
+  .community-main {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .community-header h1 {
+    font-size: 1.45rem;
+  }
+
+  .mix-card {
+    padding: 1rem;
+  }
+}
+
 .community-header h1 {
   margin: 0 0 0.35rem;
   font-size: 1.75rem;

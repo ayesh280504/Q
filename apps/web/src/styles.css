@@ -89,6 +89,51 @@ a:hover { text-decoration: underline; }
   color: #fff;
 }
 
+.site-nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(18, 18, 26, 0.85);
+  cursor: pointer;
+  z-index: 120;
+}
+
+.site-nav-toggle-bar {
+  display: block;
+  width: 1.15rem;
+  height: 2px;
+  margin: 0 auto;
+  border-radius: 1px;
+  background: #e5e7eb;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.site-nav-toggle-open .site-nav-toggle-bar:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.site-nav-toggle-open .site-nav-toggle-bar:nth-child(2) {
+  opacity: 0;
+}
+
+.site-nav-toggle-open .site-nav-toggle-bar:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.site-nav-backdrop {
+  display: none;
+}
+
+body.site-nav-menu-open {
+  overflow: hidden;
+}
+
 .font-syne {
   font-family: "Syne", system-ui, sans-serif;
 }
@@ -268,10 +313,16 @@ a:hover { text-decoration: underline; }
 
 .hero-eyebrow {
   color: #f472b6;
+  max-width: 22rem;
+  line-height: 1.45;
+}
+
+.hero-eyebrow-short {
+  display: none;
 }
 
 .hero-title {
-  font-size: clamp(2.75rem, 8vw, 4.75rem);
+  font-size: clamp(2.25rem, 10vw, 4.75rem);
   line-height: 0.95;
   letter-spacing: -0.03em;
   margin: 0.5rem 0 1.25rem;
@@ -311,12 +362,152 @@ a:hover { text-decoration: underline; }
 }
 
 @media (max-width: 768px) {
+  .site-nav {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .site-nav-toggle {
+    display: flex;
+    margin-left: auto;
+  }
+
+  .site-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 105;
+    border: none;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+    cursor: pointer;
+  }
+
+  .site-nav-links {
+    position: fixed;
+    top: 3.75rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    z-index: 110;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    max-height: calc(100dvh - 4.5rem);
+    overflow-y: auto;
+    padding: 0.5rem;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(12, 12, 18, 0.98);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+    pointer-events: none;
+  }
+
+  .site-nav-links-open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .site-nav-links a,
+  .site-nav-links .site-nav-btn {
+    display: block;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+    border-radius: 10px;
+    text-align: left;
+  }
+
+  .site-nav-links a:hover,
+  .site-nav-links .site-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    text-decoration: none;
+  }
+
+  .site-nav-cta,
+  .site-nav-cta-app {
+    margin-top: 0.35rem;
+    text-align: center !important;
+  }
+
+  .site-nav-btn-block {
+    width: 100%;
+    margin-top: 0.25rem;
+    text-align: left;
+  }
+
   .hero-content {
-    padding-top: 5.5rem;
+    padding: 5rem 1.25rem 2.5rem;
+    max-width: 100%;
+  }
+
+  .hero-eyebrow-full {
+    display: none;
+  }
+
+  .hero-eyebrow-short {
+    display: inline;
+  }
+
+  .hero-eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+  }
+
+  .hero-lead {
+    font-size: 1rem;
+    max-width: none;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-scroll-hint {
+    margin-top: 1.75rem;
+  }
+
+  .hero-deck-label {
+    display: none;
+  }
+
+  .hero-gradient-left {
+    background: linear-gradient(
+      to bottom,
+      rgba(6, 6, 10, 0.55) 0%,
+      rgba(6, 6, 10, 0.82) 38%,
+      rgba(6, 6, 10, 0.95) 72%,
+      #06060a 100%
+    );
   }
 
   .hero-canvas-wrap {
-    opacity: 0.85;
+    opacity: 0.65;
+  }
+
+  .section {
+    padding: 2.25rem 1.25rem;
+  }
+
+  .section h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .footer {
+    padding: 1.5rem 1rem;
+    font-size: 0.9rem;
   }
 }
 

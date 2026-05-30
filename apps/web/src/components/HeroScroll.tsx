@@ -16,7 +16,10 @@ export default function HeroScroll({ progress }: Props) {
   return (
     <section className="hero-scroll" id="top" aria-label="Introduction">
       <div className="hero-content">
-        <p className="eyebrow hero-eyebrow">For DJs · Local-first · Crowd on any network</p>
+        <p className="eyebrow hero-eyebrow">
+          <span className="hero-eyebrow-full">For DJs · Local-first · Crowd on any network</span>
+          <span className="hero-eyebrow-short">Local-first · Crowd on LTE</span>
+        </p>
         <h1 className="hero-title font-syne">
           The future of
           <br />
