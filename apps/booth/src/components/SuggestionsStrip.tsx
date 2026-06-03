@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import type { TransitionSuggestion } from "@q/shared";
-import { colors, type as typeScale } from "../theme";
+import { colors, fonts, spacing, type } from "../theme";
 
 type Props = { suggestions: TransitionSuggestion[] };
 
@@ -18,14 +18,32 @@ export default function SuggestionsStrip({ suggestions }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
+    backgroundColor: "rgba(192, 132, 252, 0.08)",
+    borderRadius: spacing.radius,
     padding: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderLeftWidth: 3,
-    borderLeftColor: colors.accent,
+    borderLeftColor: colors.purple,
   },
-  label: { color: colors.dim, fontSize: typeScale.caption, textTransform: "uppercase" },
-  title: { color: colors.text, fontWeight: "600", fontSize: typeScale.body, marginTop: 4 },
-  detail: { color: colors.muted, fontSize: typeScale.caption, marginTop: 2 },
+  label: {
+    fontFamily: fonts.mono,
+    color: colors.purple,
+    fontSize: type.mono,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  title: {
+    fontFamily: fonts.display,
+    color: colors.text,
+    fontSize: type.body,
+    marginTop: 6,
+  },
+  detail: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    fontSize: type.caption,
+    marginTop: 4,
+  },
 });

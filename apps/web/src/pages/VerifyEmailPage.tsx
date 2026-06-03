@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import CommunityNav from "../components/CommunityNav";
+import AppShell from "../components/AppShell";
 import { supabase } from "../lib/supabase";
 import "../community.css";
 
@@ -36,20 +36,15 @@ export default function VerifyEmailPage() {
 
   if (!email) {
     return (
-      <div className="community-page">
-        <CommunityNav />
-        <main className="community-main auth-form-wrap">
+      <AppShell narrow mainClassName="auth-form-wrap">
           <p className="error">Missing email. Start from <Link to="/register">register</Link>.</p>
-        </main>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="community-page">
-      <CommunityNav />
-      <main className="community-main auth-form-wrap">
-        <h1>Check your email</h1>
+    <AppShell narrow mainClassName="auth-form-wrap">
+        <h1 className="q-title">Check your email</h1>
         <p className="muted">
           We sent a confirmation link to <strong>{email}</strong>. Open it on this device to
           activate your account — you&apos;ll land back here and go straight to your studio.
@@ -76,7 +71,6 @@ export default function VerifyEmailPage() {
         <p className="muted switch-auth">
           Already confirmed? <Link to="/login">Sign in</Link>
         </p>
-      </main>
-    </div>
+    </AppShell>
   );
 }

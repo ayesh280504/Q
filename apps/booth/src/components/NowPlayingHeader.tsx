@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import type { SessionLiveStatus } from "@q/shared";
-import { colors, type as typeScale } from "../theme";
+import TrackPill from "./TrackPill";
+import { colors, fonts, spacing, type } from "../theme";
 
 type Props = {
   live: SessionLiveStatus | null;
@@ -32,15 +33,17 @@ export default function NowPlayingHeader({ live, pendingCount, gigCode }: Props)
           </Text>
           <View style={styles.metaRow}>
             {live.bpm != null && (
-              <Text style={styles.bpm}>{Math.round(live.bpm)}</Text>
+              <>
+                <Text style={styles.bpm}>{Math.round(live.bpm)}</Text>
+                <Text style={styles.bpmUnit}>BPM</Text>
+              </>
             )}
-            {live.bpm != null && <Text style={styles.bpmUnit}>BPM</Text>}
-            {live.key ? <Text style={styles.key}>{live.key}</Text> : null}
+            {live.key ? <TrackPill label={live.key} tone="purple" /> : null}
           </View>
         </>
       ) : (
         <Text style={styles.wait}>
-          Waiting for desktop — keep Q open on the laptop so BPM/key can push here.
+          Waiting for laptop — keep Q desktop open so BPM/key sync over your local network.
         </Text>
       )}
     </View>
@@ -49,8 +52,8 @@ export default function NowPlayingHeader({ live, pendingCount, gigCode }: Props)
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: spacing.radiusLg,
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
@@ -58,15 +61,21 @@ const styles = StyleSheet.create({
   },
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   label: {
-    color: colors.muted,
-    fontSize: typeScale.caption,
+    fontFamily: fonts.mono,
+    color: colors.pink,
+    fontSize: type.mono,
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   badges: { flexDirection: "row", alignItems: "center", gap: 8 },
-  code: { color: colors.dim, fontSize: typeScale.caption, fontWeight: "600" },
+  code: {
+    fontFamily: fonts.monoBold,
+    color: colors.muted,
+    fontSize: type.mono,
+    letterSpacing: 1,
+  },
   pill: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.pink,
     minWidth: 22,
     height: 22,
     borderRadius: 11,
@@ -74,18 +83,43 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 6,
   },
-  pillText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  title: { color: colors.text, fontSize: typeScale.title, fontWeight: "700", marginTop: 8 },
-  artist: { color: colors.muted, fontSize: typeScale.body, marginTop: 2 },
-  metaRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 10 },
-  bpm: { color: colors.text, fontSize: typeScale.bpm, fontWeight: "800", lineHeight: 36 },
-  bpmUnit: { color: colors.muted, fontSize: typeScale.caption, marginBottom: 6 },
-  key: {
-    color: colors.accent,
-    fontSize: typeScale.title,
-    fontWeight: "600",
-    marginBottom: 4,
-    marginLeft: 4,
+  pillText: {
+    color: colors.primaryText,
+    fontSize: 11,
+    fontFamily: fonts.monoBold,
+    fontWeight: "800",
   },
-  wait: { color: colors.muted, marginTop: 10, lineHeight: 20, fontSize: typeScale.body },
+  title: {
+    fontFamily: fonts.displayBold,
+    color: colors.text,
+    fontSize: type.title,
+    marginTop: 10,
+  },
+  artist: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    fontSize: type.body,
+    marginTop: 4,
+  },
+  metaRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 12 },
+  bpm: {
+    fontFamily: fonts.displayBlack,
+    color: colors.text,
+    fontSize: type.bpm,
+    lineHeight: 40,
+  },
+  bpmUnit: {
+    fontFamily: fonts.mono,
+    color: colors.muted,
+    fontSize: type.mono,
+    marginBottom: 8,
+    letterSpacing: 1,
+  },
+  wait: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    marginTop: 12,
+    lineHeight: 20,
+    fontSize: type.body,
+  },
 });

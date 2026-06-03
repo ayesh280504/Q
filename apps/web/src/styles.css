@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
   background: #06060a;
   color: #f4f4f8;
   line-height: 1.55;
@@ -134,8 +134,8 @@ body.site-nav-menu-open {
   overflow: hidden;
 }
 
-.font-syne {
-  font-family: "Syne", system-ui, sans-serif;
+.font-display {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 /* —— Scroll-driven hero deck (fixed behind page) —— */
@@ -700,7 +700,7 @@ body.site-nav-menu-open {
 
 .legal-page {
   min-height: 100vh;
-  background: #06060a;
+  background: #000;
 }
 
 .legal-main {
@@ -782,7 +782,7 @@ body.site-nav-menu-open {
 /* —— Download page —— */
 .download-page {
   min-height: 100vh;
-  background: #06060a;
+  background: #000;
 }
 
 .download-main {

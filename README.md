@@ -335,7 +335,7 @@ Base URL: `http://localhost:8787` (dev)
 | Item | Notes |
 |------|-------|
 | Full account OAuth / email verify | Email+password v1 only |
-| Production deploy | API, crowd, web on real hosts — see [docs/PRE-DEPLOY-CHECKLIST.md](docs/PRE-DEPLOY-CHECKLIST.md) first |
+| Production deploy | [docs/PRODUCTION-DEPLOY.md](docs/PRODUCTION-DEPLOY.md) — Render, Vercel, GitHub Release, Supabase redirects (v0.2.0) |
 | Audio hosting for mixes | Link-only (SoundCloud etc.) |
 | Traktor adapter | Roadmap |
 | Native compact “sidebar” layout | Window resize only today |
@@ -371,17 +371,31 @@ npm run build -w @q/serato
 | All three | (above) | `npm run dev:stack` |
 | Desktop app | Tauri window | `npm run tauri:dev -w @q/desktop` |
 
+### Phone + LAN (crowd + Q Booth mobile)
+
+1. In `.env`, set `Q_CROWD_URL=http://<your-lan-ip>:5173` (Windows: `ipconfig` → IPv4).  
+2. Run `npm run sync:env` — updates `VITE_Q_CROWD_LAN_URL`, `EXPO_PUBLIC_*`, and `apps/booth/.env`.  
+3. `npm run dev:stack` — API listens on `0.0.0.0:8787`; crowd on `:5173` with `host: true`.  
+4. Phone on same Wi‑Fi: open crowd URL from desktop QR, or Expo **Q Booth** (`npm run dev:booth`).  
+5. Crowd on phone uses `/api` proxy automatically (no `localhost` on the device).
+
+| App | Command | Phone URL |
+|-----|---------|-----------|
+| Crowd (guests) | `npm run dev:stack` | `http://<lan-ip>:5173/r/CODE` |
+| Q Booth (DJ HUD) | `npm run dev:booth` | Expo Go → scan terminal QR |
+| Desktop | `npm run dev:desktop` | Laptop only; pushes BPM/key to API |
+
+All three surfaces share `@q/theme` tokens (black, Inter, pink/cyan/purple, white CTAs).
+
 ### Full gig test checklist
 
 1. `npm run dev:stack` in terminal 1  
-2. `npm run tauri:dev -w @q/desktop` in terminal 2 (requires [Rust](https://rustup.rs))  
-3. Desktop → enter DJ name → set limits → **Start gig**  
-4. **Auto-import** Rekordbox or Serato (or pick file/folder)  
-5. **Sync now** (uploads library if online)  
-6. Copy crowd URL or scan QR → open on phone or browser  
-7. Search + submit requests  
-8. Desktop → **Sync now** → accept/decline  
-9. Optional: turn off Wi‑Fi on laptop → accept offline → hotspot → **Sync now**
+2. `npm run dev:desktop` (or `tauri:dev`) in terminal 2  
+3. Optional: `npm run dev:booth` in terminal 3 for phone accept/decline  
+4. Desktop → sign in → **Start gig** → import library → **Sync now**  
+5. Scan QR on phone → search + submit requests (branded crowd UI)  
+6. Accept/decline on desktop, overlay, or **Q Booth** app  
+7. Optional: laptop offline → accept locally → hotspot → **Sync now**
 
 ### Library import paths
 

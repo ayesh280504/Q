@@ -1,6 +1,6 @@
 import SiteNav from "./SiteNav";
 
-/** Community / auth pages — same global nav as marketing. */
+/** @deprecated Use AppShell — kept for any stragglers */
 export default function CommunityNav() {
-  return <SiteNav />;
+  return <SiteNav variant="marketing" />;
 }

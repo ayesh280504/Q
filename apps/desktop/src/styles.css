@@ -1,14 +1,10 @@
 :root {
   color-scheme: dark;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  background: #08080c;
-  color: #f4f4f8;
 }
 
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  background: #08080c;
 }
 
 /* In overlay mode the OS window is transparent and frameless. We let the

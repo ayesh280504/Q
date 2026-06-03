@@ -153,11 +153,10 @@ export default function HeroScrollFrames({ progress }: Props) {
       const ih = img.naturalHeight;
       if (!iw || !ih) return;
 
-      const scale = Math.min((w * 1.28) / iw, (h * 1.28) / ih);
+      const scale = Math.min((w * 1.52) / iw, (h * 1.52) / ih);
       const dw = iw * scale;
       const dh = ih * scale;
-      /* Shift right so the jog wheel sits near the horizontal center of the viewport. */
-      const dx = (w - dw) / 2 + w * 0.14;
+      const dx = (w - dw) / 2 + w * 0.18;
       const dy = (h - dh) / 2;
 
       ctx.clearRect(0, 0, w, h);

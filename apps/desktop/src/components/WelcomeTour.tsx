@@ -71,7 +71,7 @@ export default function WelcomeTour() {
     <div className="welcome-tour-backdrop" role="dialog" aria-modal="true">
       <div className="welcome-tour-card">
         <p className="welcome-tour-kicker">
-          {step + 1} / {STEPS.length}
+          // Step {step + 1} · {STEPS.length}
         </p>
         <h2>{current.title}</h2>
         <p className="muted">{current.body}</p>
@@ -88,11 +88,11 @@ export default function WelcomeTour() {
           </button>
           {isLast ? (
             <button type="button" className="btn primary" onClick={finish}>
-              Start DJing
+              Start DJing →
             </button>
           ) : (
             <button type="button" className="btn primary" onClick={() => setStep((s) => s + 1)}>
-              Next
+              Next →
             </button>
           )}
         </div>

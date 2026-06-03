@@ -1,0 +1,10 @@
+{
+  "name": "@q/theme",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./booth-theme.css": "./booth-theme.css",
+    "./crowd-theme.css": "./crowd-theme.css",
+    "./tokens": "./tokens.ts"
+  }
+}

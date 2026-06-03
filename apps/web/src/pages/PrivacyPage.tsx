@@ -1,17 +1,15 @@
 import { Link } from "react-router-dom";
-import SiteNav from "../components/SiteNav";
+import AppShell from "../components/AppShell";
 import QLogo from "../components/QLogo";
-import "../studio.css";
 
 const LAST_UPDATED = "May 24, 2026";
 
 export default function PrivacyPage() {
   return (
-    <div className="legal-page">
-      <SiteNav />
-      <main className="legal-main">
+    <AppShell>
         <QLogo size={48} className="legal-logo" />
-        <h1>Privacy Policy</h1>
+        <p className="q-kicker">// Legal</p>
+        <h1 className="q-title">Privacy Policy</h1>
         <p className="muted">Last updated: {LAST_UPDATED}</p>
 
         <section className="legal-section">
@@ -280,7 +278,6 @@ export default function PrivacyPage() {
         <p className="muted small legal-foot">
           <Link to="/">← Back to home</Link>
         </p>
-      </main>
-    </div>
+    </AppShell>
   );
 }

@@ -1,16 +1,34 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import BoothGigModal from "../components/BoothGigModal";
+import BoothLayout from "../components/BoothLayout";
 import LaunchAppButton from "../components/LaunchAppButton";
-import SiteNav from "../components/SiteNav";
-import QLogo from "../components/QLogo";
 import { getInstallerUrls } from "../lib/downloadUrls";
-import "../studio.css";
-import "../community.css";
+
+const BOOTH_VERSION = "0.2.0";
+
+const FEATURES = [
+  {
+    n: "01",
+    title: "Local engine",
+    desc: "Reads Rekordbox, Serato, and your local files directly. No upload step.",
+  },
+  {
+    n: "02",
+    title: "QR portal",
+    desc: "Print a sticker. Crowd scans on LTE — no venue Wi-Fi, no app install.",
+  },
+  {
+    n: "03",
+    title: "Booth-grade UI",
+    desc: "Dark glass, big tap targets, readable in any lighting. Built for the floor.",
+  },
+] as const;
 
 export default function DownloadPage() {
   const [search, setSearch] = useSearchParams();
   const [gigModalOpen, setGigModalOpen] = useState(search.get("gig") === "1");
+  const installers = getInstallerUrls();
 
   useEffect(() => {
     if (search.get("gig") === "1") setGigModalOpen(true);
@@ -32,134 +50,227 @@ export default function DownloadPage() {
     }
   }
 
-  const installers = getInstallerUrls();
-
   return (
-    <div className="download-page">
-      <SiteNav />
+    <BoothLayout>
       <BoothGigModal open={gigModalOpen} onClose={closeGigModal} />
-      <main className="download-main">
-        <QLogo size={56} className="download-logo" />
-        <h1>Download Q Command Center</h1>
-        <p className="lead narrow">
-          The booth app runs on your DJ laptop. Crowd requests live in the browser — guests scan
-          your QR and request from their phones.
-        </p>
 
-        <section className="card download-gig-hero">
-          <h2>Ready for tonight?</h2>
-          <p className="muted">
-            Start a gig session to get your QR code and accept crowd requests on screen — no
-            shouting over the music.
-          </p>
-          <div className="download-gig-actions">
-            <button type="button" className="btn primary" onClick={openGigModal}>
-              Start your gig
-            </button>
-            <LaunchAppButton label="Open booth app" className="btn ghost" />
-          </div>
-        </section>
-
-        <section className="card download-launch-card">
-          <h2>Already installed?</h2>
-          <p className="muted">
-            Use <strong>Start your gig</strong> above for the full walkthrough, or jump straight
-            into the booth app.
-          </p>
-          <LaunchAppButton
-            label="Open booth & start gig"
-            intent="start-gig"
-            className="btn ghost"
-          />
-        </section>
-
-        <div id="download-platforms" className="download-grid">
-          <article className="card download-card">
-            <h2>Windows</h2>
-            <p className="muted">
-              For Serato / Rekordbox on PC. Install Q beside your DJ software — pin on top for
-              live requests.
+      <section className="booth-hero">
+        <div className="booth-hero-grid">
+          <div className="booth-hero-copy">
+            <p className="booth-kicker booth-kicker--pink">
+              <span className="booth-kicker-dot" aria-hidden />
+              Booth · command center
             </p>
-            <p className="download-badge">Requires Windows 10+</p>
-            <details className="download-details">
-              <summary>Build on Windows</summary>
-              <ol className="download-steps">
-                <li>
-                  Install <a href="https://nodejs.org/">Node 20+</a> and{" "}
-                  <a href="https://rustup.rs/">Rust</a>
-                </li>
-                <li>Clone your Q repo and run <code>npm install</code></li>
-                <li>
-                  <code>npm run tauri:build -w @q/desktop</code>
-                </li>
-                <li>
-                  Installer output under{" "}
-                  <code>apps/desktop/src-tauri/target/release/bundle/</code>
-                </li>
-              </ol>
-            </details>
-            {installers.windows ? (
-              <a
-                className="btn primary download-btn"
-                href={installers.windows}
-                download
-                rel="noopener noreferrer"
-              >
-                Download for Windows
-              </a>
-            ) : (
-              <span className="btn ghost download-btn-disabled" aria-disabled>
-                Windows installer — coming soon
+            <h1 className="booth-hero-title" aria-label="Run the booth">
+              <span className="booth-hero-title-line">Run</span>
+              <span className="booth-hero-title-line booth-hero-title-line--gradient">
+                the booth.
               </span>
-            )}
+            </h1>
+            <p className="booth-hero-desc">
+              Q lives on your DJ laptop. Crowd requests fly into the browser — guests scan your QR
+              and ping the booth from their phones. No shouting, no app installs.
+            </p>
+          </div>
+
+          <aside className="booth-hero-download">
+            <p className="booth-version-kicker">
+              // Version {BOOTH_VERSION} — beta
+            </p>
+            <div className="booth-download-card">
+              <div className="booth-download-card-meta">
+                <span>macOS</span>
+                <span className="booth-download-card-size">// installer</span>
+              </div>
+              {installers.mac ? (
+                <a
+                  className="booth-btn-primary booth-download-card-btn"
+                  href={installers.mac}
+                  download
+                  rel="noopener noreferrer"
+                >
+                  Download for Mac →
+                </a>
+              ) : (
+                <span className="booth-btn-primary booth-download-card-btn" aria-disabled style={{ opacity: 0.5 }}>
+                  Download for Mac — soon
+                </span>
+              )}
+              {installers.windows ? (
+                <a
+                  className="booth-btn-outline booth-download-card-btn"
+                  href={installers.windows}
+                  download
+                  rel="noopener noreferrer"
+                >
+                  Windows →
+                </a>
+              ) : (
+                <span className="booth-btn-outline booth-download-card-btn" aria-disabled>
+                  Windows · soon
+                </span>
+              )}
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section className="booth-section">
+        <div className="booth-set-grid">
+          <article className="booth-set-panel">
+            <span className="booth-set-label">Set — 01</span>
+            <p className="booth-kicker booth-kicker--pink">
+              <span className="booth-kicker-dot" aria-hidden />
+              Live tonight
+            </p>
+            <h1 className="booth-headline" aria-label="Ready for tonight">
+              <span className="booth-headline-line">Ready for</span>
+              <span className="booth-headline-line booth-headline-line--gradient-pink">
+                tonight?
+              </span>
+            </h1>
+            <p className="booth-lead">
+              Spin up a gig session, grab your QR, and accept crowd requests straight on the
+              screen. No shouting over the music.
+            </p>
+            <button type="button" className="booth-btn-primary" onClick={openGigModal}>
+              Start your gig →
+            </button>
+            <LaunchAppButton label="Open booth app" className="booth-btn-outline" />
           </article>
 
-          <article className="card download-card">
-            <h2>macOS</h2>
-            <p className="muted">
-              For Mac DJs using Serato or Rekordbox. Same booth app — QR, requests, and library
-              sync.
+          <article className="booth-set-panel">
+            <span className="booth-set-label">Set — 02</span>
+            <p className="booth-kicker booth-kicker--cyan">
+              <span className="booth-kicker-dot" aria-hidden />
+              Returning DJ
             </p>
-            <p className="download-badge">Requires macOS 11+</p>
-            <details className="download-details">
-              <summary>Build on Mac</summary>
-              <ol className="download-steps">
-                <li>
-                  Install <a href="https://nodejs.org/">Node 20+</a> and{" "}
-                  <a href="https://rustup.rs/">Rust</a>
-                </li>
-                <li>Clone your Q repo and run <code>npm install</code></li>
-                <li>
-                  <code>npm run tauri:build -w @q/desktop</code>
-                </li>
-                <li>
-                  Look for <code>.app</code> or <code>.dmg</code> in{" "}
-                  <code>apps/desktop/src-tauri/target/release/bundle/macos/</code>
-                </li>
-              </ol>
-            </details>
-            {installers.mac ? (
-              <a
-                className="btn primary download-btn"
-                href={installers.mac}
-                download
-                rel="noopener noreferrer"
-              >
-                Download for Mac
-              </a>
-            ) : (
-              <span className="btn ghost download-btn-disabled" aria-disabled>
-                Mac installer — coming soon
+            <h2 className="booth-headline" aria-label="Already installed">
+              <span className="booth-headline-line">Already</span>
+              <span className="booth-headline-line booth-headline-line--gradient-cyan">
+                installed?
               </span>
-            )}
+            </h2>
+            <p className="booth-lead">
+              Hop straight back into the booth. Your library, queues, and crates are right where
+              you left them.
+            </p>
+            <div className="booth-launch-wrap">
+              <LaunchAppButton
+                label="Launch Q on this Mac →"
+                intent="open"
+                className="booth-btn-outline"
+              />
+            </div>
+            <a href="#download-platforms" className="booth-link-muted">
+              See what&apos;s new in {BOOTH_VERSION} →
+            </a>
           </article>
         </div>
-      </main>
-      <footer className="footer">
-        <p>
-          <Link to="/">← Back to home</Link> · <Link to="/privacy">Privacy</Link>
+      </section>
+
+      <section className="booth-section" id="how">
+        <p className="booth-kicker booth-kicker--cyan">
+          <span className="booth-kicker-dot" aria-hidden />
+          Under the hood
         </p>
-      </footer>
-    </div>
+        <h2 className="booth-section-title">What ships in the box.</h2>
+        <div className="booth-features">
+          {FEATURES.map((f) => (
+            <div key={f.n} className="booth-feature">
+              <span className="booth-feature-num" aria-hidden>
+                {f.n}
+              </span>
+              <h3>{f.title}</h3>
+              <p>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="booth-section">
+        <div className="booth-sysreq">
+          <div>
+            <p className="booth-kicker booth-kicker--pink">
+              <span className="booth-kicker-dot" aria-hidden />
+              System requirements
+            </p>
+            <h2 className="booth-sysreq-title">Will Q run for you?</h2>
+          </div>
+          <table className="booth-sysreq-table">
+            <tbody>
+              <tr>
+                <th scope="row">macOS</th>
+                <td>12 Monterey or newer (Apple Silicon + Intel)</td>
+              </tr>
+              <tr>
+                <th scope="row">Windows</th>
+                <td>10 / 11 — installer in private beta</td>
+              </tr>
+              <tr>
+                <th scope="row">RAM</th>
+                <td>4 GB minimum, 8 GB recommended</td>
+              </tr>
+              <tr>
+                <th scope="row">Library</th>
+                <td>Rekordbox 6+, Serato 2+, or local MP3/FLAC</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="booth-section" id="download-platforms">
+        <p className="booth-kicker booth-kicker--pink">
+          <span className="booth-kicker-dot" aria-hidden />
+          Plug in
+        </p>
+        <h2 className="booth-section-title">Download Q</h2>
+        <p className="booth-lead">
+          macOS and Windows booth apps. Install from a release build, or run from source while
+          installers are in beta.
+        </p>
+        <div className="booth-download-grid">
+          {installers.mac ? (
+            <a
+              className="booth-btn-primary"
+              href={installers.mac}
+              download
+              rel="noopener noreferrer"
+            >
+              macOS
+            </a>
+          ) : (
+            <span className="booth-btn-outline" style={{ opacity: 0.5 }} aria-disabled>
+              macOS — soon
+            </span>
+          )}
+          {installers.windows ? (
+            <a
+              className="booth-btn-outline"
+              href={installers.windows}
+              download
+              rel="noopener noreferrer"
+            >
+              Windows
+            </a>
+          ) : (
+            <span className="booth-btn-outline" style={{ opacity: 0.5 }} aria-disabled>
+              Windows — soon
+            </span>
+          )}
+        </div>
+        <p className="booth-download-note">
+          No installer yet? Clone the repo and run{" "}
+          <code>npm run tauri:build -w @q/desktop</code>. Output lives under{" "}
+          <code>apps/desktop/src-tauri/target/release/bundle/</code>.
+        </p>
+        <p className="booth-download-note" style={{ marginTop: "0.75rem" }}>
+          <Link to="/community" style={{ color: "var(--mkt-pink)" }}>
+            Browse the community feed →
+          </Link>
+        </p>
+      </section>
+    </BoothLayout>
   );
 }

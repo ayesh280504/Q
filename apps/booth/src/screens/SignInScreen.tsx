@@ -1,6 +1,11 @@
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, type as typeScale } from "../theme";
+import { StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import BoothAmbient from "../components/BoothAmbient";
+import BoothButton from "../components/BoothButton";
+import BoothKicker from "../components/BoothKicker";
+import QLogo from "../components/QLogo";
+import { colors, fonts, spacing, type } from "../theme";
 
 type Props = {
   email: string;
@@ -23,62 +28,91 @@ export default function SignInScreen({
 }: Props) {
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
-      <Text style={styles.brand}>Q Booth</Text>
-      <Text style={styles.sub}>Glanceable accept / decline at the mixer.</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor={colors.dim}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={onEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor={colors.dim}
-        secureTextEntry
-        value={password}
-        onChangeText={onPassword}
-      />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable style={styles.btnPrimary} onPress={onSubmit} disabled={busy}>
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.btnText}>Sign in</Text>
-        )}
-      </Pressable>
-      <Text style={styles.hint}>
-        Same account as q-web. Keep Q desktop running on the laptop for now playing BPM/key.
-      </Text>
+      <BoothAmbient />
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
+        <StatusBar style="light" />
+        <View style={styles.header}>
+          <QLogo size={44} />
+        </View>
+        <BoothKicker>// Booth mobile · sync</BoothKicker>
+        <Text style={styles.headlinePrimary}>Run the</Text>
+        <Text style={styles.headlineAccent}>booth.</Text>
+        <Text style={styles.sub}>
+          Glanceable accept / decline at the mixer. Works with Q on your laptop — no venue Wi‑Fi
+          required for decisions.
+        </Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor={colors.dim}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={onEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor={colors.dim}
+          secureTextEntry
+          value={password}
+          onChangeText={onPassword}
+        />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <BoothButton onPress={onSubmit} disabled={busy} busy={busy}>
+          Sign in →
+        </BoothButton>
+        <Text style={styles.hint}>
+          Same account as q-web. Keep Q desktop open on the laptop so now playing BPM/key push
+          here over LAN.
+        </Text>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, padding: 20, justifyContent: "center" },
-  brand: { fontSize: typeScale.hero, fontWeight: "800", color: colors.text },
-  sub: { color: colors.muted, marginTop: 8, marginBottom: 24, lineHeight: 22 },
+  root: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, padding: spacing.pad, justifyContent: "center" },
+  header: { marginBottom: 20 },
+  headlinePrimary: {
+    fontFamily: fonts.displayBlack,
+    fontSize: type.hero,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  headlineAccent: {
+    fontFamily: fonts.displayBlack,
+    fontSize: type.hero,
+    color: colors.pink,
+    fontStyle: "italic",
+    letterSpacing: -0.5,
+    marginBottom: 12,
+  },
+  sub: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    marginBottom: 24,
+    lineHeight: 22,
+    fontSize: type.body,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: spacing.radius,
     padding: 14,
     color: colors.text,
     marginBottom: 10,
-    fontSize: typeScale.body,
+    fontSize: type.body,
+    fontFamily: fonts.body,
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  btnPrimary: {
-    backgroundColor: colors.accent,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 8,
+  error: { color: "#fca5a5", marginBottom: 8, fontFamily: fonts.body },
+  hint: {
+    color: colors.dim,
+    fontSize: type.caption,
+    marginTop: 20,
+    lineHeight: 20,
+    fontFamily: fonts.body,
   },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: typeScale.body },
-  error: { color: "#fca5a5", marginBottom: 8 },
-  hint: { color: colors.dim, fontSize: typeScale.caption, marginTop: 20, lineHeight: 20 },
 });

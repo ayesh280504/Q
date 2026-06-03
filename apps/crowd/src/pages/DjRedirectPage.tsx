@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import QLogo from "../components/QLogo";
+import CrowdHero from "../components/CrowdHero";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 
@@ -34,8 +34,9 @@ export default function DjRedirectPage() {
   if (status === "loading") {
     return (
       <div className="app">
-        <QLogo size={48} className="brand-mark" />
-        <p className="sub">Finding tonight&apos;s booth…</p>
+        <CrowdHero kicker="// Booth link" title="Finding tonight's gig…">
+          <p className="sub">One moment.</p>
+        </CrowdHero>
       </div>
     );
   }
@@ -43,27 +44,27 @@ export default function DjRedirectPage() {
   if (status === "error") {
     return (
       <div className="app">
-        <QLogo size={48} className="brand-mark" />
-        <h1 className="offline-title">Booth not found</h1>
-        <p className="sub">
-          We couldn&apos;t find <strong>@{handle}</strong>. Double-check the QR or link.
-        </p>
+        <CrowdHero kicker="// Booth link" title="Booth not found">
+          <p className="sub">
+            We couldn&apos;t find <strong>@{handle}</strong>. Double-check the QR or link.
+          </p>
+        </CrowdHero>
       </div>
     );
   }
 
   return (
     <div className="app offline-booth">
-      <QLogo size={48} className="brand-mark" />
-      <h1 className="offline-title">{booth?.displayName ?? handle}</h1>
-      <p className="sub offline-lead">
-        {booth?.displayName ? `@${booth.handle} ` : ""}
-        isn&apos;t taking requests right now.
-      </p>
-      <p className="sub">
-        When they start their gig in Q, this same QR unlocks the request page — no need to
-        reprint anything.
-      </p>
+      <CrowdHero
+        kicker={`// @${booth?.handle ?? handle}`}
+        title={<>{booth?.displayName ?? handle}</>}
+      >
+        <p className="sub offline-lead">Not taking requests right now.</p>
+        <p className="sub">
+          When they start their gig in Q, this same QR unlocks the request page — no need to
+          reprint anything.
+        </p>
+      </CrowdHero>
     </div>
   );
 }

@@ -13,12 +13,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import BoothButton from "../components/BoothButton";
 import DeclineSheet from "../components/DeclineSheet";
 import NowPlayingHeader from "../components/NowPlayingHeader";
+import QLogo from "../components/QLogo";
 import SuggestionsStrip from "../components/SuggestionsStrip";
 import SwipeRequestCard from "../components/SwipeRequestCard";
 import type { BoothGig } from "../storage";
-import { colors, type as typeScale } from "../theme";
+import { colors, fonts, spacing, type } from "../theme";
 
 type Props = {
   gig: BoothGig;
@@ -80,6 +82,20 @@ export default function LiveScreen({
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
       <StatusBar style="light" />
+      <View style={styles.topBar}>
+        <QLogo size={28} />
+        <View style={styles.topMeta}>
+          <Text style={styles.topLabel}>Live · {gig.code}</Text>
+          <Text style={styles.topSub} numberOfLines={1}>
+            {gig.displayName}
+          </Text>
+        </View>
+        {pendingCount > 0 && (
+          <View style={styles.syncPill}>
+            <Text style={styles.syncPillText}>{pendingCount} sync</Text>
+          </View>
+        )}
+      </View>
       <NowPlayingHeader live={live} pendingCount={pendingCount} gigCode={gig.code} />
       <SuggestionsStrip suggestions={suggestions} />
       <View style={styles.listHeader}>
@@ -93,7 +109,7 @@ export default function LiveScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => void onRefresh()}
-            tintColor={colors.accent}
+            tintColor={colors.pink}
           />
         }
         contentContainerStyle={requests.length === 0 ? styles.emptyList : undefined}
@@ -109,9 +125,9 @@ export default function LiveScreen({
         )}
       />
       <View style={styles.footer}>
-        <Pressable style={styles.linkBtn} onPress={() => void copyLink()}>
-          <Text style={styles.linkBtnText}>{copied ? "Copied!" : "Copy crowd link"}</Text>
-        </Pressable>
+        <BoothButton variant="ghost" onPress={() => void copyLink()}>
+          {copied ? "Copied!" : "Copy crowd link"}
+        </BoothButton>
         <Pressable style={styles.endBtn} onPress={onEndGig} disabled={busy}>
           {busy ? (
             <ActivityIndicator color={colors.muted} />
@@ -132,29 +148,73 @@ export default function LiveScreen({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 16 },
+  root: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.padSm },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+    paddingTop: 4,
+  },
+  topMeta: { flex: 1, minWidth: 0 },
+  topLabel: {
+    fontFamily: fonts.monoBold,
+    fontSize: type.mono,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: colors.pink,
+  },
+  topSub: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    fontSize: type.caption,
+    marginTop: 2,
+  },
+  syncPill: {
+    backgroundColor: "rgba(34, 211, 238, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 211, 238, 0.35)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  syncPillText: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.cyan,
+    letterSpacing: 0.5,
+  },
   listHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "baseline",
     marginBottom: 8,
   },
-  section: { color: colors.text, fontWeight: "700", fontSize: typeScale.body },
-  swipeHint: { color: colors.dim, fontSize: 11 },
+  section: {
+    fontFamily: fonts.display,
+    color: colors.text,
+    fontSize: type.body,
+  },
+  swipeHint: {
+    fontFamily: fonts.mono,
+    color: colors.dim,
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
   emptyList: { flexGrow: 1, justifyContent: "center" },
-  empty: { color: colors.muted, textAlign: "center", paddingVertical: 40 },
+  empty: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    textAlign: "center",
+    paddingVertical: 40,
+  },
   footer: { paddingVertical: 12, gap: 8 },
-  linkBtn: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
+  endBtn: { padding: 12, alignItems: "center" },
+  endText: {
+    fontFamily: fonts.mono,
+    color: colors.muted,
+    fontSize: type.caption,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
-  linkBtnText: { color: colors.accent, fontWeight: "600" },
-  endBtn: {
-    padding: 12,
-    alignItems: "center",
-  },
-  endText: { color: colors.muted, fontSize: typeScale.caption },
 });

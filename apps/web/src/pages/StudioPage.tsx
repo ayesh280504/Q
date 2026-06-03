@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import CommunityNav from "../components/CommunityNav";
+import AppShell from "../components/AppShell";
 import LaunchAppButton from "../components/LaunchAppButton";
 import WebOnboardingTour, { hasCompletedWebOnboarding } from "../components/WebOnboardingTour";
 import { useAuth } from "../context/AuthContext";
@@ -82,7 +82,11 @@ export default function StudioPage() {
   }
 
   if (loading || profileLoading || !user) {
-    return <p className="muted community-page">Loading studio…</p>;
+    return (
+      <AppShell className="studio-page" footer={false}>
+        <p className="muted">Loading studio…</p>
+      </AppShell>
+    );
   }
 
   const showOnboarding =
@@ -90,13 +94,11 @@ export default function StudioPage() {
   const publicCount = mixes.filter((m) => m.isPublic).length;
 
   return (
-    <div className="community-page studio-page">
+    <AppShell className="studio-page">
       <WebOnboardingTour force={showOnboarding} onDone={clearOnboardQuery} />
-      <CommunityNav />
-      <main className="community-main">
         <header className="studio-hero">
-          <p className="studio-hero-kicker">DJ workspace</p>
-          <h1>Hey, @{user.handle}</h1>
+          <p className="studio-hero-kicker">// DJ workspace</p>
+          <h1 className="q-title">Hey, @{user.handle}</h1>
           <p className="muted">
             Your mix locker for the web. Run the booth app on your laptop for gigs, QR, and
             requests.
@@ -182,7 +184,6 @@ export default function StudioPage() {
             </p>
           )}
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

@@ -16,23 +16,21 @@ export default function HeroScroll({ progress }: Props) {
   return (
     <section className="hero-scroll" id="top" aria-label="Introduction">
       <div className="hero-content">
-        <p className="eyebrow hero-eyebrow">
-          <span className="hero-eyebrow-full">For DJs · Local-first · Crowd on any network</span>
-          <span className="hero-eyebrow-short">Local-first · Crowd on LTE</span>
+        <p className="hero-kicker">
+          <span className="hero-kicker-dot" aria-hidden />
+          <span>// Booth access granted</span>
         </p>
-        <h1 className="hero-title font-syne">
-          The future of
-          <br />
-          the booth.
+        <h1 className="font-display hero-headline">
+          <span className="hero-title-primary">The Future</span>
+          <span className="hero-title-gradient-clip">
+            <span className="hero-title-gradient">Of The Booth</span>
+          </span>
         </h1>
-        <p className="hero-lead">
-          Your queue. Your rules. Your library — scroll to watch the deck come alive.
-        </p>
         <div className="hero-actions">
-          <Link to="/download" className="btn primary hero-cta">
+          <Link to="/download" className="btn btn-primary-mkt hero-cta">
             Download Q
           </Link>
-          <a className="btn ghost hero-cta" href="#how">
+          <a className="btn btn-ghost-mkt hero-cta" href="#how">
             How it works
           </a>
         </div>

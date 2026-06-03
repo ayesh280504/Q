@@ -1,6 +1,6 @@
 {
   "name": "@q/desktop",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,6 +11,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@q/theme": "*",
     "@q/rekordbox": "*",
     "@q/serato": "*",
     "@q/shared": "*",

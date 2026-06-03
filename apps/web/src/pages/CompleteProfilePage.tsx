@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import CommunityNav from "../components/CommunityNav";
+import AppShell from "../components/AppShell";
 import { hasCompletedWebOnboarding } from "../components/WebOnboardingTour";
 import { useAuth } from "../context/AuthContext";
 import { fetchMe, saveAccountToken, syncProfile } from "../lib/accountApi";
@@ -57,14 +57,16 @@ export default function CompleteProfilePage() {
   }
 
   if (profileLoading) {
-    return <p className="muted community-page">Loading…</p>;
+    return (
+      <AppShell narrow footer={false}>
+        <p className="muted">Loading…</p>
+      </AppShell>
+    );
   }
 
   return (
-    <div className="community-page">
-      <CommunityNav />
-      <main className="community-main auth-form-wrap">
-        <h1>Finish your profile</h1>
+    <AppShell narrow mainClassName="auth-form-wrap">
+        <h1 className="q-title">Finish your profile</h1>
         <p className="muted">
           Choose a username for your public page and permanent booth QR (
           <code>/dj/your-username</code>). This is how others find and @mention you.
@@ -86,7 +88,6 @@ export default function CompleteProfilePage() {
             {busy ? "…" : "Continue to studio"}
           </button>
         </form>
-      </main>
-    </div>
+    </AppShell>
   );
 }

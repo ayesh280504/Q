@@ -1,0 +1,672 @@
+/**
+ * Shared Q booth brand tokens + desktop overrides.
+ * Import after apps/desktop/src/styles.css so these win.
+ */
+
+:root {
+  --mkt-pink: #f472b6;
+  --mkt-cyan: #22d3ee;
+  --mkt-purple: #c084fc;
+  --mkt-display: "Inter", system-ui, -apple-system, sans-serif;
+  --mkt-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --booth-bg: #000000;
+  --booth-bg-elevated: #0a0a10;
+  --booth-panel: rgba(8, 8, 14, 0.78);
+  --booth-border: rgba(255, 255, 255, 0.08);
+  --booth-border-strong: rgba(255, 255, 255, 0.14);
+  --booth-text: #f4f4f5;
+  --booth-muted: rgba(255, 255, 255, 0.45);
+  --booth-surface: rgba(255, 255, 255, 0.04);
+
+  --q-logo-glow: brightness(1.05) drop-shadow(-1px 0 3px rgba(192, 132, 252, 0.45))
+    drop-shadow(2px -1px 4px rgba(56, 189, 248, 0.35));
+  --q-logo-glow-strong: brightness(1.06) drop-shadow(-2px 0 4px rgba(216, 180, 254, 0.5))
+    drop-shadow(2px -2px 5px rgba(56, 189, 248, 0.4));
+}
+
+body {
+  font-family: var(--mkt-display);
+  background: var(--booth-bg);
+  color: var(--booth-text);
+}
+
+.shell {
+  background: var(--booth-bg);
+}
+
+/* —— Shell chrome —— */
+.dock-topbar {
+  background: rgba(0, 0, 0, 0.92);
+  border-bottom-color: var(--booth-border);
+  backdrop-filter: blur(12px);
+}
+
+.panel {
+  background: transparent;
+  border-color: var(--booth-border);
+}
+
+.panel:last-child {
+  border-color: var(--booth-border);
+}
+
+.right-stack,
+.shell-dock .right-stack {
+  border-color: var(--booth-border);
+}
+
+.shell-dock .panel-dock-controls {
+  border-color: var(--booth-border);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.pane-heading,
+.settings-section-label,
+.field-label {
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mkt-purple);
+}
+
+.muted {
+  color: var(--booth-muted);
+}
+
+/* —— Tabs (match web pill / active pink) —— */
+.tab {
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-color: var(--booth-border);
+  background: var(--booth-surface);
+  color: var(--booth-muted);
+  border-radius: 6px;
+}
+
+.tab.active {
+  background: #f4f4f5;
+  border-color: #f4f4f5;
+  color: #000;
+}
+
+.tab.plan-pro.active {
+  background: linear-gradient(90deg, var(--mkt-pink), var(--mkt-purple));
+  border-color: transparent;
+  color: #fff;
+}
+
+.tab.plan-pro {
+  border-color: rgba(244, 114, 182, 0.35);
+  color: var(--mkt-pink);
+  background: rgba(244, 114, 182, 0.08);
+}
+
+/* —— Buttons —— */
+.btn {
+  font-family: var(--mkt-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 6px;
+}
+
+.btn.primary {
+  background: #f4f4f5;
+  color: #000;
+  font-weight: 700;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #fff;
+}
+
+.btn.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 1px solid var(--booth-border-strong);
+  color: var(--booth-text);
+}
+
+.btn.ghost:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.btn-top {
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-color: var(--booth-border);
+  background: var(--booth-surface);
+  color: var(--booth-text);
+  border-radius: 6px;
+}
+
+.btn-top:hover {
+  border-color: rgba(244, 114, 182, 0.45);
+  color: var(--mkt-pink);
+}
+
+/* —— Modals (Welcome tour, Start gig) —— */
+.welcome-tour-backdrop {
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+.welcome-tour-card {
+  background: var(--booth-panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--booth-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+}
+
+.welcome-tour-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  color: var(--mkt-pink);
+  margin: 0 0 0.75rem;
+}
+
+.welcome-tour-kicker::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mkt-pink);
+  box-shadow: 0 0 8px var(--mkt-pink);
+  flex-shrink: 0;
+}
+
+.welcome-tour-card h2 {
+  font-family: var(--mkt-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.welcome-tour-actions .btn {
+  width: auto;
+  margin-top: 0;
+  min-width: 6rem;
+}
+
+.welcome-tour-actions .btn.primary {
+  flex: 1;
+  max-width: 12rem;
+}
+
+/* —— Update banner —— */
+.update-banner {
+  border-color: rgba(244, 114, 182, 0.35);
+  background: rgba(244, 114, 182, 0.08);
+}
+
+.update-banner-title {
+  font-family: var(--mkt-display);
+}
+
+.status {
+  background: var(--booth-surface);
+  border: 1px solid var(--booth-border);
+  border-left-width: 3px;
+}
+
+.inspector-modal {
+  background: var(--booth-panel);
+  border-color: var(--booth-border-strong);
+}
+
+/* —— Queue + requests panes —— */
+.queue-block {
+  border-bottom-color: var(--booth-border);
+  background: linear-gradient(180deg, rgba(8, 8, 14, 0.95) 0%, rgba(0, 0, 0, 0.98) 100%);
+}
+
+.requests-block {
+  background: var(--booth-bg);
+}
+
+.queue-suggestions {
+  border-bottom-color: var(--booth-border);
+}
+
+.now-playing-bar,
+.account-box {
+  background: var(--booth-surface);
+  border-color: var(--booth-border-strong);
+  border-radius: 8px;
+}
+
+.now-playing-label {
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  color: var(--mkt-pink);
+}
+
+.now-playing-track strong {
+  font-family: var(--mkt-display);
+  font-weight: 700;
+}
+
+.dj-queue-item,
+.up-next-item {
+  background: var(--booth-surface);
+  border-color: var(--booth-border);
+  border-radius: 8px;
+}
+
+.dj-queue-item:hover,
+.up-next-item:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.queue-count,
+.dock-pending-badge {
+  background: var(--mkt-pink);
+  color: #000;
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.queue-count.pulse,
+.dock-pending-badge.pulse {
+  animation: booth-request-pulse 0.55s ease-in-out 3;
+}
+
+@keyframes booth-request-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 114, 182, 0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(244, 114, 182, 0.35);
+    transform: scale(1.08);
+  }
+}
+
+.pane-heading {
+  font-family: var(--mkt-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.request {
+  background: var(--booth-surface);
+  border-radius: 8px;
+  border-color: var(--booth-border);
+  box-shadow: none;
+}
+
+.request:hover {
+  border-color: rgba(244, 114, 182, 0.35);
+}
+
+.request h3 {
+  font-family: var(--mkt-display);
+  font-weight: 700;
+}
+
+.request .meta {
+  color: var(--booth-muted);
+}
+
+/* Accept = primary white pill; Decline = outlined */
+.requests-block .actions .btn {
+  margin-top: 0;
+  width: 100%;
+  border-radius: 6px;
+}
+
+.btn.good {
+  background: #f4f4f5;
+  color: #000;
+  border: none;
+  font-weight: 700;
+}
+
+.btn.good:hover:not(:disabled) {
+  background: #fff;
+}
+
+.btn.bad {
+  background: transparent;
+  color: var(--booth-text);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+.btn.bad:hover:not(:disabled) {
+  border-color: rgba(244, 114, 182, 0.55);
+  color: var(--mkt-pink);
+  background: rgba(244, 114, 182, 0.06);
+}
+
+.suggestion {
+  border-left-color: var(--mkt-purple);
+  background: rgba(192, 132, 252, 0.06);
+  border-radius: 8px;
+}
+
+.suggestion.pro {
+  border-left-color: var(--mkt-pink);
+  background: rgba(244, 114, 182, 0.06);
+}
+
+.badge.in {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge.out {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge.pending {
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--mkt-cyan);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+}
+
+.badge.played-earlier {
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+}
+
+/* —— QR sticker —— */
+.sticker-section {
+  max-width: 360px;
+}
+
+.sticker-heading {
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mkt-pink);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sticker-heading::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mkt-pink);
+  box-shadow: 0 0 8px var(--mkt-pink);
+  flex-shrink: 0;
+}
+
+.sticker-hint,
+.sticker-lan-hint {
+  font-size: 0.78rem;
+  color: var(--booth-muted);
+}
+
+.sticker-lan-hint {
+  color: rgba(192, 132, 252, 0.85);
+}
+
+.sticker-lan-warn {
+  color: #fcd34d;
+}
+
+.sticker-card {
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+.sticker-tagline {
+  font-family: var(--mkt-display);
+  font-weight: 700;
+}
+
+.sticker-code,
+.sticker-url {
+  font-family: var(--mkt-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.sticker-actions .btn.primary {
+  flex: 1;
+}
+
+.sticker-actions .btn.ghost {
+  flex: 1;
+}
+
+/* —— Form fields (gig setup) —— */
+.field-input {
+  font-family: var(--mkt-display);
+  background: var(--booth-surface);
+  border-color: var(--booth-border-strong);
+  border-radius: 6px;
+  color: var(--booth-text);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: rgba(244, 114, 182, 0.45);
+}
+
+.limits-line {
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--mkt-purple);
+}
+
+.gig-setup.compact {
+  border-top-color: var(--booth-border);
+}
+
+/* —— Floating overlay dock —— */
+.overlay-shell {
+  font-family: var(--mkt-display);
+  background: rgba(0, 0, 0, 0.94);
+  border: 1px solid var(--booth-border-strong);
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 12px 40px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.overlay-header {
+  background: rgba(0, 0, 0, 0.85);
+  border-bottom-color: var(--booth-border);
+}
+
+.overlay-meta strong {
+  font-family: var(--mkt-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mkt-pink);
+}
+
+.overlay-djname {
+  color: var(--booth-muted);
+}
+
+.overlay-btn {
+  font-family: var(--mkt-mono);
+  font-size: 0.72rem;
+  background: var(--booth-surface);
+  border-color: var(--booth-border);
+  border-radius: 6px;
+  color: var(--booth-text);
+}
+
+.overlay-btn:hover:not(:disabled) {
+  border-color: rgba(244, 114, 182, 0.4);
+  color: var(--mkt-pink);
+  background: rgba(244, 114, 182, 0.08);
+}
+
+.overlay-btn-on {
+  background: rgba(244, 114, 182, 0.15);
+  border-color: rgba(244, 114, 182, 0.45);
+  color: var(--mkt-pink);
+}
+
+.overlay-btn-good {
+  background: #f4f4f5;
+  border-color: #f4f4f5;
+  color: #000;
+  font-weight: 800;
+}
+
+.overlay-btn-good:hover:not(:disabled) {
+  background: #fff;
+  border-color: #fff;
+  color: #000;
+}
+
+.overlay-btn-bad {
+  background: transparent;
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.overlay-btn-bad:hover:not(:disabled) {
+  border-color: rgba(244, 114, 182, 0.5);
+  color: var(--mkt-pink);
+  background: rgba(244, 114, 182, 0.06);
+}
+
+.overlay-section-queue,
+.overlay-section-now {
+  border-color: var(--booth-border);
+}
+
+.overlay-section-head h3 {
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  color: var(--mkt-purple);
+}
+
+.overlay-count {
+  background: rgba(244, 114, 182, 0.2);
+  color: var(--mkt-pink);
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.overlay-count.pulse {
+  animation: booth-overlay-pulse 1.1s ease-in-out 2;
+}
+
+@keyframes booth-overlay-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 114, 182, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(244, 114, 182, 0);
+  }
+}
+
+.overlay-request,
+.overlay-queue-item {
+  background: var(--booth-surface);
+  border-color: var(--booth-border);
+  border-radius: 8px;
+}
+
+.overlay-track strong {
+  font-weight: 700;
+}
+
+.overlay-badge {
+  font-family: var(--mkt-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 4px;
+}
+
+.overlay-footer {
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-top-color: var(--booth-border);
+}
+
+.decline-menu-popover {
+  background: var(--booth-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: var(--booth-border-strong);
+  border-radius: 8px;
+}
+
+.decline-menu-title {
+  font-family: var(--mkt-mono);
+  color: var(--mkt-purple);
+}
+
+.decline-menu-item:hover,
+.decline-menu-item:focus-visible {
+  background: rgba(244, 114, 182, 0.12);
+  color: #fff;
+}
+
+.decline-menu-skip {
+  border-color: var(--booth-border);
+  font-family: var(--mkt-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.decline-menu-skip:hover {
+  border-color: rgba(244, 114, 182, 0.35);
+  color: var(--mkt-pink);
+}
+
+/* Logo glow from shared tokens */
+.q-logo,
+.brand-mark .q-logo,
+.dock-brand,
+.sticker-brand-logo {
+  filter: var(--q-logo-glow);
+}
+
+.brand-mark .q-logo,
+.dock-brand,
+.sticker-brand-logo {
+  filter: var(--q-logo-glow-strong);
+}

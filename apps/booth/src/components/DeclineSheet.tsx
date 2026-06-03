@@ -1,7 +1,8 @@
 import type { DeclineReason } from "@q/shared";
 import { DECLINE_REASON_LABELS } from "@q/shared";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors, type as typeScale } from "../theme";
+import BoothKicker from "./BoothKicker";
+import { colors, fonts, spacing, type } from "../theme";
 
 const REASON_ORDER: DeclineReason[] = [
   "vibe",
@@ -28,17 +29,13 @@ export default function DeclineSheet({ visible, title, artist, onPick, onClose }
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.heading}>Decline</Text>
+          <BoothKicker>// Decline</BoothKicker>
           <Text style={styles.track} numberOfLines={2}>
             {title} · {artist}
           </Text>
           <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
             {REASON_ORDER.map((key) => (
-              <Pressable
-                key={key}
-                style={styles.reasonRow}
-                onPress={() => onPick(key)}
-              >
+              <Pressable key={key} style={styles.reasonRow} onPress={() => onPick(key)}>
                 <Text style={styles.reasonText}>{DECLINE_REASON_LABELS[key]}</Text>
               </Pressable>
             ))}
@@ -55,27 +52,42 @@ export default function DeclineSheet({ visible, title, artist, onPick, onClose }
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.75)",
+    backgroundColor: "rgba(0,0,0,0.82)",
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: colors.surfaceRaised,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
+    backgroundColor: colors.surfaceGlass,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    padding: spacing.pad,
     maxHeight: "70%",
     borderTopWidth: 1,
     borderColor: colors.border,
   },
-  heading: { color: colors.text, fontSize: typeScale.title, fontWeight: "700" },
-  track: { color: colors.muted, marginTop: 6, marginBottom: 12, fontSize: typeScale.caption },
+  track: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    marginBottom: 12,
+    fontSize: type.caption,
+  },
   list: { maxHeight: 360 },
   reasonRow: {
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  reasonText: { color: colors.text, fontSize: typeScale.body },
+  reasonText: {
+    fontFamily: fonts.body,
+    color: colors.text,
+    fontSize: type.body,
+  },
   skip: { borderBottomWidth: 0, marginTop: 8 },
-  skipText: { color: colors.dim, fontSize: typeScale.caption, textAlign: "center" },
+  skipText: {
+    fontFamily: fonts.mono,
+    color: colors.dim,
+    fontSize: type.mono,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    textAlign: "center",
+  },
 });

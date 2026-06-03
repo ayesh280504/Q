@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/vite-env.d.ts","./src/components/qlogo.tsx","./src/lib/guestid.ts","./src/lib/uuid.ts","./src/pages/djredirectpage.tsx","./src/pages/requestpage.tsx"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/vite-env.d.ts","./src/components/crowdhero.tsx","./src/components/qlogo.tsx","./src/lib/guestid.ts","./src/lib/uuid.ts","./src/pages/djredirectpage.tsx","./src/pages/requestpage.tsx"],"version":"5.9.3"}

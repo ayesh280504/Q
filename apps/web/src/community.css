@@ -1,6 +1,6 @@
 .community-page {
   min-height: 100vh;
-  background: #0a0a0f;
+  background: #000;
   color: #f4f4f5;
 }
 
@@ -56,9 +56,14 @@
   }
 }
 
-.community-header h1 {
+.community-header h1,
+.q-app h1 {
   margin: 0 0 0.35rem;
   font-size: 1.75rem;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
 }
 
 .muted {
@@ -86,8 +91,8 @@
 .mix-card {
   padding: 1.25rem;
   border-radius: 12px;
-  background: #14141f;
-  border: 1px solid #2a2a3a;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .mix-card h2,

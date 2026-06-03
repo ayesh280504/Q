@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import CommunityNav from "../components/CommunityNav";
+import AppShell from "../components/AppShell";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import "../community.css";
 
@@ -53,20 +53,15 @@ export default function ResetPasswordPage() {
 
   if (!supabaseConfigured) {
     return (
-      <div className="community-page">
-        <CommunityNav />
-        <main className="community-main auth-form-wrap">
+      <AppShell narrow mainClassName="auth-form-wrap">
           <p className="error">Supabase is not configured.</p>
-        </main>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="community-page">
-      <CommunityNav />
-      <main className="community-main auth-form-wrap">
-        <h1>Choose a new password</h1>
+    <AppShell narrow mainClassName="auth-form-wrap">
+        <h1 className="q-title">Choose a new password</h1>
         {!ready ? (
           <p className="muted">
             Open the reset link from your email. Request a new one from{" "}
@@ -103,7 +98,6 @@ export default function ResetPasswordPage() {
         <p className="muted switch-auth">
           <Link to="/login">Back to sign in</Link>
         </p>
-      </main>
-    </div>
+    </AppShell>
   );
 }

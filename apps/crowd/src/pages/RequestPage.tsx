@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import QLogo from "../components/QLogo";
+import CrowdHero from "../components/CrowdHero";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
 import type { CrowdRequest, DeclineReason, Session, TrackSearchHit } from "@q/shared";
@@ -196,21 +196,31 @@ export default function RequestPage() {
         ? "Search any song — Spotify hits and DJ's own crate both show up"
         : "Search the DJ's synced library";
 
+  const djName = session?.displayName ?? session?.name;
+
   return (
     <div className="app">
-      <QLogo size={48} className="brand-mark" />
-      <p className="sub">
-        {error
-          ? null
-          : session
-            ? `Request a track — ${session.displayName ?? session.name}`
-            : "Loading…"}
-      </p>
-      {session && !error && (
-        <p className="sub hero-hint">
-          No need to shout at the booth — your request shows on the DJ&apos;s screen.
-        </p>
-      )}
+      <CrowdHero
+        kicker={session ? `// ${session.code}` : "// Loading"}
+        title={
+          error ? (
+            "Request a track"
+          ) : session ? (
+            <>
+              {djName}
+              <span className="crowd-title-accent"> · live</span>
+            </>
+          ) : (
+            "Loading…"
+          )
+        }
+      >
+        {session && !error && (
+          <p className="sub hero-hint">
+            No need to shout at the booth — your request shows on the DJ&apos;s screen.
+          </p>
+        )}
+      </CrowdHero>
       {session && (
         <p className="sub limits-hint">
           Up to {session.maxRequestsPerGuest ?? 3} requests per person · {searchHint}
@@ -283,7 +293,7 @@ export default function RequestPage() {
       </ul>
 
       <section className="manual">
-        <h2 style={{ fontSize: "1rem", margin: "0 0 0.5rem" }}>Don&apos;t see it?</h2>
+        <h2>Don&apos;t see it?</h2>
         <p className="sub" style={{ marginTop: 0 }}>
           Type any track — the DJ still gets your request even if search misses it.
         </p>

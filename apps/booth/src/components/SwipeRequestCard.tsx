@@ -8,7 +8,8 @@ import {
   View,
 } from "react-native";
 import type { CrowdRequest } from "@q/shared";
-import { colors, type as typeScale } from "../theme";
+import TrackPill from "./TrackPill";
+import { colors, fonts, spacing, type } from "../theme";
 
 const SWIPE_THRESHOLD = 72;
 
@@ -71,19 +72,17 @@ export default function SwipeRequestCard({ item, onAccept, onDeclinePress }: Pro
           </Text>
         ) : null}
         <View style={styles.metaRow}>
-          {item.bpm != null && <Text style={styles.meta}>{Math.round(item.bpm)} BPM</Text>}
-          {item.key ? <Text style={styles.meta}>{item.key}</Text> : null}
+          {item.bpm != null && <TrackPill label={`${Math.round(item.bpm)} BPM`} tone="cyan" />}
+          {item.key ? <TrackPill label={item.key} tone="purple" /> : null}
           {item.inStock && <Text style={styles.inStock}>In library</Text>}
-          {item.playedEarlierTonight && (
-            <Text style={styles.warn}>Played tonight</Text>
-          )}
+          {item.playedEarlierTonight && <TrackPill label="Played tonight" tone="warn" />}
         </View>
         <View style={styles.actions}>
           <Pressable style={styles.acceptBtn} onPress={onAccept}>
-            <Text style={styles.btnLabel}>Accept</Text>
+            <Text style={styles.acceptLabel}>Accept</Text>
           </Pressable>
           <Pressable style={styles.declineBtn} onPress={onDeclinePress}>
-            <Text style={styles.btnLabel}>Decline</Text>
+            <Text style={styles.declineLabel}>Decline</Text>
           </Pressable>
         </View>
       </Animated.View>
@@ -92,40 +91,85 @@ export default function SwipeRequestCard({ item, onAccept, onDeclinePress }: Pro
 }
 
 const styles = StyleSheet.create({
-  shell: { marginBottom: 12, borderRadius: 12, overflow: "hidden" },
+  shell: { marginBottom: 12, borderRadius: spacing.radiusLg, overflow: "hidden" },
   underlay: { ...StyleSheet.absoluteFillObject, flexDirection: "row" },
   hintSide: { flex: 1, justifyContent: "center", paddingHorizontal: 12 },
-  hintAccept: { backgroundColor: colors.acceptDim, alignItems: "flex-start" },
+  hintAccept: { backgroundColor: "rgba(244, 244, 245, 0.08)", alignItems: "flex-start" },
   hintDecline: { backgroundColor: colors.declineDim, alignItems: "flex-end" },
-  hintText: { color: colors.muted, fontWeight: "600", fontSize: typeScale.caption },
+  hintText: {
+    fontFamily: fonts.monoBold,
+    color: colors.muted,
+    fontSize: type.mono,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
   card: {
     backgroundColor: colors.surfaceRaised,
-    borderRadius: 12,
+    borderRadius: spacing.radiusLg,
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  title: { color: colors.text, fontSize: 18, fontWeight: "700" },
-  artist: { color: colors.muted, fontSize: typeScale.body, marginTop: 2 },
-  message: { color: colors.dim, fontSize: typeScale.caption, marginTop: 8, fontStyle: "italic" },
-  metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
-  meta: { color: colors.accent, fontSize: typeScale.caption, fontWeight: "600" },
-  inStock: { color: colors.accept, fontSize: typeScale.caption },
-  warn: { color: colors.warn, fontSize: typeScale.caption },
-  actions: { flexDirection: "row", gap: 8, marginTop: 12 },
+  title: {
+    fontFamily: fonts.displayBold,
+    color: colors.text,
+    fontSize: 18,
+  },
+  artist: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    fontSize: type.body,
+    marginTop: 4,
+  },
+  message: {
+    fontFamily: fonts.body,
+    color: colors.dim,
+    fontSize: type.caption,
+    marginTop: 8,
+    fontStyle: "italic",
+  },
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+    alignItems: "center",
+  },
+  inStock: {
+    fontFamily: fonts.mono,
+    color: colors.accept,
+    fontSize: type.mono,
+    letterSpacing: 0.5,
+  },
+  actions: { flexDirection: "row", gap: 8, marginTop: 14 },
   acceptBtn: {
     flex: 1,
-    backgroundColor: colors.accept,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: spacing.radius,
     alignItems: "center",
+  },
+  acceptLabel: {
+    fontFamily: fonts.monoBold,
+    color: colors.primaryText,
+    fontSize: type.caption,
+    letterSpacing: 1,
+    textTransform: "uppercase",
   },
   declineBtn: {
     flex: 1,
-    backgroundColor: colors.border,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.45)",
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: spacing.radius,
     alignItems: "center",
   },
-  btnLabel: { color: "#fff", fontWeight: "700", fontSize: typeScale.body },
+  declineLabel: {
+    fontFamily: fonts.monoBold,
+    color: colors.text,
+    fontSize: type.caption,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
 });

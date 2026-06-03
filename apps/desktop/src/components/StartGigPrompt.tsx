@@ -34,7 +34,7 @@ export default function StartGigPrompt({
       <div className="welcome-tour-card">
         {liveCode ? (
           <>
-            <p className="welcome-tour-kicker">Already live</p>
+            <p className="welcome-tour-kicker">// Already live</p>
             <h2>Gig session active</h2>
             <p className="muted">
               Code <strong>{liveCode}</strong> — print your QR sticker or share the crowd link.
@@ -42,13 +42,13 @@ export default function StartGigPrompt({
             </p>
             <div className="welcome-tour-actions">
               <button type="button" className="btn primary" onClick={onClose}>
-                Got it
+                Got it →
               </button>
             </div>
           </>
         ) : (
           <>
-            <p className="welcome-tour-kicker">From Q web</p>
+            <p className="welcome-tour-kicker">// Start gig</p>
             <h2>Start tonight&apos;s gig</h2>
             <p className="muted">
               Creates your session and QR for crowd requests. You need internet once — after
@@ -66,7 +66,7 @@ export default function StartGigPrompt({
                 onClick={onStartGig}
                 title={librarySource == null ? "Pick a library profile to continue" : undefined}
               >
-                {busy ? "Starting…" : "Start gig"}
+                {busy ? "Starting…" : "Start gig →"}
               </button>
             </div>
           </>

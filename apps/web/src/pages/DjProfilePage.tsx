@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AuthGateModal from "../components/AuthGateModal";
-import CommunityNav from "../components/CommunityNav";
+import AppShell from "../components/AppShell";
 import DjSocialBar from "../components/DjSocialBar";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -56,14 +56,12 @@ export default function DjProfilePage() {
   }
 
   return (
-    <div className="community-page">
-      <CommunityNav />
+    <AppShell>
       <AuthGateModal
         open={Boolean(gateAction)}
         action={gateAction ?? ""}
         onClose={() => setGateAction(null)}
       />
-      <main className="community-main">
         {error && <p className="error">{error}</p>}
         {profile && (
           <>
@@ -141,7 +139,6 @@ export default function DjProfilePage() {
         <p className="back-link">
           <Link to="/community">← Back to feed</Link>
         </p>
-      </main>
-    </div>
+    </AppShell>
   );
 }

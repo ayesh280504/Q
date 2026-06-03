@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import CommunityNav from "../components/CommunityNav";
+import AuthLayout from "../components/AuthLayout";
 import { supabaseConfigured } from "../context/AuthContext";
 import { savePendingSignup } from "../lib/authPending";
 import { ensureQProfile } from "../lib/ensureQProfile";
@@ -13,7 +13,6 @@ import {
 } from "../lib/returnToDesktop";
 
 const googleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE === "true";
-import "../community.css";
 
 export default function AuthPage() {
   const location = useLocation();
@@ -28,16 +27,11 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
   const loginMessage = (location.state as { message?: string } | null)?.message;
 
-  // Remember the "I came from the booth desktop app" intent across the entire
-  // flow so we still bounce back even after Supabase email verification or
-  // OAuth redirects.
   useEffect(() => {
     if (searchParams.get("returnTo") === "desktop") markReturnToDesktop();
   }, [searchParams]);
   const returnToDesktop = hasReturnToDesktop();
 
-  // If the user already has a Supabase session and asked us to bounce back,
-  // do it immediately — no reason to make them re-enter a password.
   useEffect(() => {
     if (!returnToDesktop) return;
     if (!supabase) return;
@@ -141,103 +135,127 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="community-page">
-      <CommunityNav />
-      <main className="community-main auth-form-wrap">
-        <h1>{mode === "register" ? "Create your DJ account" : "Sign in"}</h1>
-        <p className="muted">
-          {mode === "register"
-            ? "Your username is your public @handle, profile URL (/dj/username), and permanent booth QR."
-            : "Access your mix locker and studio."}
+    <AuthLayout
+      formKicker={mode === "register" ? "// New account" : "// Returning DJ"}
+      formTitle={mode === "register" ? ["Sign", "Up."] : ["Sign", "In."]}
+    >
+      <p className="auth-form-sub">
+        {mode === "register"
+          ? "Claim your handle. Open your booth."
+          : "Access your mix locker and studio."}
+      </p>
+
+      {returnToDesktop && (
+        <div className="auth-from-desktop-banner">
+          <strong>Signing in for the Q booth app.</strong>
+          <span>
+            {" "}
+            When you finish, we&apos;ll send you back to the desktop app.
+          </span>
+        </div>
+      )}
+
+      {!supabaseConfigured && (
+        <p className="error small" style={{ marginBottom: "1rem" }}>
+          Supabase is not loaded — accounts save only on this laptop. Set{" "}
+          <code>VITE_SUPABASE_*</code> in the repo root <code>.env</code> and restart{" "}
+          <code>npm run dev:stack</code>.
         </p>
+      )}
 
-        {returnToDesktop && (
-          <div className="auth-from-desktop-banner">
-            <strong>Signing in for the Q booth app.</strong>
-            <span>
-              {" "}When you finish, we&apos;ll bounce you back to the desktop app so you stay
-              logged in there.
-            </span>
-          </div>
+      <form className="auth-mock-form" onSubmit={onSubmit}>
+        {mode === "register" && (
+          <label>
+            Handle
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              required={!supabaseConfigured || mode === "register"}
+              pattern="[a-z][a-z0-9_]{2,23}"
+              title="3–24 chars, lowercase letters, numbers, underscore"
+              autoComplete="username"
+              placeholder="dj handle"
+            />
+          </label>
         )}
-
-        {!supabaseConfigured && (
-          <p className="error small">
-            Supabase is not loaded — accounts save only on this laptop (not in your Q-DJ
-            dashboard). Restart <code>npm run dev:stack</code> after setting{" "}
-            <code>VITE_SUPABASE_*</code> in the repo root <code>.env</code>.
+        <label>
+          Email
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            placeholder="you@booth.fm"
+            autoComplete="email"
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete={mode === "register" ? "new-password" : "current-password"}
+          />
+        </label>
+        {loginMessage && mode === "login" && (
+          <p className="muted" style={{ margin: "0 0 0.75rem" }}>
+            {loginMessage}
           </p>
         )}
+        {info && <p className="muted" style={{ margin: "0 0 0.75rem" }}>{info}</p>}
+        {error && (
+          <p className="error" style={{ margin: "0 0 0.75rem" }}>
+            {error}
+          </p>
+        )}
+        <button type="submit" className="auth-submit" disabled={busy}>
+          <span>
+            {busy
+              ? "…"
+              : mode === "register"
+                ? "Create account →"
+                : "Enter booth →"}
+          </span>
+        </button>
+      </form>
 
-        {supabaseConfigured && googleAuthEnabled && (
+      {supabaseConfigured && googleAuthEnabled && (
+        <>
+          <div className="auth-or" role="presentation">
+            <span className="auth-or-line" />
+            <span className="auth-or-label">or</span>
+            <span className="auth-or-line" />
+          </div>
+          <button
+            type="button"
+            className="auth-google"
+            disabled={busy}
+            onClick={() => void onGoogle()}
+          >
+            <span className="auth-google-dot" aria-hidden />
+            Continue with Google
+          </button>
+        </>
+      )}
+
+      <div className="auth-switch">
+        {mode === "register" ? (
           <>
-            <button
-              type="button"
-              className="btn google-btn"
-              disabled={busy}
-              onClick={() => void onGoogle()}
-            >
-              Continue with Google
-            </button>
-            <p className="auth-divider muted">or use email</p>
+            Already have an account? <Link to="/login">Sign in →</Link>
+          </>
+        ) : (
+          <>
+            New here? <Link to="/register">Create account →</Link>
+            <br />
+            <Link to="/forgot-password" className="auth-switch-muted">
+              Forgot password?
+            </Link>
           </>
         )}
-
-        <form className="auth-form" onSubmit={onSubmit}>
-          {mode === "register" && (
-            <label>
-              Username (e.g. dj_ayesh)
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                required={!supabaseConfigured || mode === "register"}
-                pattern="[a-z][a-z0-9_]{2,23}"
-                title="3–24 chars, lowercase letters, numbers, underscore"
-                autoComplete="username"
-              />
-            </label>
-          )}
-          <label>
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-          </label>
-          {loginMessage && mode === "login" && <p className="muted">{loginMessage}</p>}
-          {info && <p className="muted">{info}</p>}
-          {error && <p className="error">{error}</p>}
-          <button type="submit" className="btn primary" disabled={busy}>
-            {busy ? "…" : mode === "register" ? "Create account" : "Sign in"}
-          </button>
-        </form>
-
-        <p className="muted switch-auth">
-          {mode === "register" ? (
-            <>
-              Already have an account? <Link to="/login">Sign in</Link>
-            </>
-          ) : (
-            <>
-              New here? <Link to="/register">Create account</Link>
-              <br />
-              <Link to="/forgot-password">Forgot password?</Link>
-            </>
-          )}
-        </p>
-      </main>
-    </div>
+      </div>
+    </AuthLayout>
   );
 }

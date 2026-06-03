@@ -5,12 +5,14 @@ Native Expo app — phone HUD for accept/decline at the mixer.
 ## Setup
 
 ```bash
-cp apps/booth/.env.example apps/booth/.env
-# Edit LAN IP for physical device testing
+# In root .env set Q_CROWD_URL=http://<your-lan-ip>:5173 (ipconfig on Windows)
+npm run sync:env   # writes apps/booth/.env + VITE_Q_CROWD_LAN_URL for desktop QR
 
 npm install
 npm run dev:booth
 ```
+
+In another terminal: `npm run dev:stack` (API + crowd) and `npm run dev:desktop`.
 
 Scan the QR with Expo Go, or run `npm run android` / `npm run ios` with a dev build.
 
@@ -19,6 +21,10 @@ Scan the QR with Expo Go, or run `npm run android` / `npm run ios` with a dev bu
 - Q API running (`npm run dev:api`)
 - Q desktop running on laptop (pushes `live_status` / reads Serato-Rekordbox)
 - DJ account (same email/password as web)
+
+## Brand
+
+Mobile UI uses the same tokens as web/desktop (`@q/theme/tokens` — black AMOLED, Inter + JetBrains Mono, pink/cyan/purple accents, white primary CTAs).
 
 ## Features
 

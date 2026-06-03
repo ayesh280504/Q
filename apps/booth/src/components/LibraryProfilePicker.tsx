@@ -1,7 +1,7 @@
 import type { LibrarySource } from "@q/shared";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LIBRARY_PROFILES } from "../lib/libraryProfile";
-import { colors, type as typeScale } from "../theme";
+import { colors, fonts, spacing, type } from "../theme";
 
 type Props = {
   value: LibrarySource | null;
@@ -32,21 +32,41 @@ export default function LibraryProfilePicker({ value, onChange }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { marginVertical: 12 },
-  heading: { color: colors.text, fontSize: typeScale.body, fontWeight: "700" },
-  sub: { color: colors.muted, fontSize: typeScale.caption, marginTop: 4, marginBottom: 10 },
+  heading: {
+    fontFamily: fonts.display,
+    color: colors.text,
+    fontSize: type.body,
+  },
+  sub: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    fontSize: type.caption,
+    marginTop: 4,
+    marginBottom: 10,
+  },
   option: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: spacing.radius,
     padding: 12,
     marginBottom: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(255,255,255,0.03)",
   },
   optionActive: {
-    borderColor: colors.accent,
-    backgroundColor: "rgba(124, 92, 255, 0.12)",
+    borderColor: colors.pink,
+    backgroundColor: "rgba(244, 114, 182, 0.1)",
   },
-  optionTitle: { color: colors.text, fontWeight: "600", fontSize: typeScale.body },
-  optionTitleActive: { color: colors.accent },
-  optionSummary: { color: colors.muted, fontSize: typeScale.caption, marginTop: 4, lineHeight: 18 },
+  optionTitle: {
+    fontFamily: fonts.display,
+    color: colors.text,
+    fontSize: type.body,
+  },
+  optionTitleActive: { color: colors.pink },
+  optionSummary: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    fontSize: type.caption,
+    marginTop: 4,
+    lineHeight: 18,
+  },
 });

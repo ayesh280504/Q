@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import CommunityNav from "../components/CommunityNav";
+import AppShell from "../components/AppShell";
 import { useAuth } from "../context/AuthContext";
 import { getAccountToken, updateProfile } from "../lib/accountApi";
 import type { DjSocialLinks } from "@q/shared";
@@ -56,16 +56,18 @@ export default function SettingsPage() {
   }
 
   if (loading || profileLoading || !profile) {
-    return <p className="muted community-page">Loading settings…</p>;
+    return (
+      <AppShell className="studio-page" footer={false}>
+        <p className="muted">Loading settings…</p>
+      </AppShell>
+    );
   }
 
   return (
-    <div className="community-page studio-page">
-      <CommunityNav />
-      <main className="community-main">
+    <AppShell className="studio-page">
         <header className="studio-hero">
-          <p className="studio-hero-kicker">Account</p>
-          <h1>Settings</h1>
+          <p className="studio-hero-kicker">// Account</p>
+          <h1 className="q-title">Settings</h1>
           <p className="muted">
             Edit what fans see on your{" "}
             <Link to={`/dj/${profile.handle}`}>public profile</Link>. Mixes are managed in{" "}
@@ -113,7 +115,6 @@ export default function SettingsPage() {
             {busy ? "Saving…" : "Save settings"}
           </button>
         </form>
-      </main>
-    </div>
+    </AppShell>
   );
 }

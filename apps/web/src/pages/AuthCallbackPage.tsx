@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import AppShell from "../components/AppShell";
 import QLogo from "../components/QLogo";
 import { ensureQProfile } from "../lib/ensureQProfile";
 import { consumeReturnToDesktop } from "../lib/returnToDesktop";
@@ -67,7 +68,7 @@ export default function AuthCallbackPage() {
   }, [navigate]);
 
   return (
-    <div className="community-page" style={{ textAlign: "center", padding: "4rem 1rem" }}>
+    <AppShell center footer={false}>
       <QLogo size={56} />
       {error ? (
         <>
@@ -85,6 +86,6 @@ export default function AuthCallbackPage() {
           Finishing sign-in…
         </p>
       )}
-    </div>
+    </AppShell>
   );
 }

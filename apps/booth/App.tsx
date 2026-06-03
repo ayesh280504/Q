@@ -1,7 +1,8 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { useBoothFonts } from "./src/hooks/useBoothFonts";
 import type { CrowdRequest, DeclineReason, DjProfile, LibrarySource, SessionLiveStatus, TransitionSuggestion } from "@q/shared";
 import {
   createSession,
@@ -26,13 +27,14 @@ import {
   saveLibrarySourcePref,
   type BoothGig,
 } from "./src/storage";
-import { colors } from "./src/theme";
+import { colors, fonts } from "./src/theme";
 
 type Screen = "loading" | "signin" | "home" | "live";
 
 const POLL_MS = 15_000;
 
 export default function App() {
+  const fontsLoaded = useBoothFonts();
   const [screen, setScreen] = useState<Screen>("loading");
   const [profile, setProfile] = useState<DjProfile | null>(null);
   const [gig, setGig] = useState<BoothGig | null>(null);
@@ -188,11 +190,21 @@ export default function App() {
     }
   }
 
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={colors.pink} size="large" />
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       {screen === "loading" && (
         <View style={styles.loading}>
-          <ActivityIndicator color={colors.accent} size="large" />
+          <ActivityIndicator color={colors.pink} size="large" />
+          <Text style={styles.loadingText}>Q Booth</Text>
           <StatusBar style="light" />
         </View>
       )}
@@ -250,5 +262,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontFamily: fonts.monoBold,
+    color: colors.pink,
+    fontSize: 12,
+    letterSpacing: 2,
+    textTransform: "uppercase",
   },
 });

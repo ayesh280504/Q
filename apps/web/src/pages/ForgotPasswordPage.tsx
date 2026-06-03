@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import CommunityNav from "../components/CommunityNav";
+import AppShell from "../components/AppShell";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import "../community.css";
 
@@ -31,21 +31,16 @@ export default function ForgotPasswordPage() {
 
   if (!supabaseConfigured) {
     return (
-      <div className="community-page">
-        <CommunityNav />
-        <main className="community-main auth-form-wrap">
+      <AppShell narrow mainClassName="auth-form-wrap">
           <p className="error">Password reset requires Supabase. Check your root <code>.env</code>.</p>
           <Link to="/login">Back to sign in</Link>
-        </main>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="community-page">
-      <CommunityNav />
-      <main className="community-main auth-form-wrap">
-        <h1>Reset password</h1>
+    <AppShell narrow mainClassName="auth-form-wrap">
+        <h1 className="q-title">Reset password</h1>
 
         {sent ? (
           <>
@@ -89,7 +84,6 @@ export default function ForgotPasswordPage() {
         <p className="muted switch-auth">
           <Link to="/login">Back to sign in</Link>
         </p>
-      </main>
-    </div>
+    </AppShell>
   );
 }

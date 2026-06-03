@@ -6,9 +6,11 @@ import { useAuth } from "../context/AuthContext";
 interface SiteNavProps {
   /** Fixed transparent bar on marketing hero */
   overHero?: boolean;
+  /** Minimal uppercase nav on marketing homepage */
+  variant?: "default" | "marketing";
 }
 
-export default function SiteNav({ overHero }: SiteNavProps) {
+export default function SiteNav({ overHero, variant = "default" }: SiteNavProps) {
   const { signedIn, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
@@ -26,8 +28,12 @@ export default function SiteNav({ overHero }: SiteNavProps) {
     setMenuOpen(false);
   }
 
+  const isMarketing = variant === "marketing";
+
   return (
-    <header className={`site-nav ${overHero ? "site-nav-over-hero" : ""}`}>
+    <header
+      className={`site-nav ${overHero ? "site-nav-over-hero" : ""} ${isMarketing ? "site-nav-marketing" : ""}`}
+    >
       <Link to="/" className="logo" onClick={closeMenu}>
         <QLogo size={40} className="site-nav-logo" />
       </Link>
@@ -58,23 +64,56 @@ export default function SiteNav({ overHero }: SiteNavProps) {
         id="site-nav-menu"
         className={`site-nav-links ${menuOpen ? "site-nav-links-open" : ""}`}
       >
-        <Link to="/download" onClick={closeMenu}>
-          Download
+        <Link
+          to="/download"
+          onClick={closeMenu}
+          className={[
+            isMarketing ? "site-nav-text" : "",
+            isMarketing &&
+            (location.pathname === "/download" || location.pathname === "/booth")
+              ? "site-nav-link-active"
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined}
+        >
+          {isMarketing ? "Booth" : "Download"}
         </Link>
-        <Link to="/community" onClick={closeMenu}>
+        <Link
+          to="/community"
+          onClick={closeMenu}
+          className={[
+            isMarketing ? "site-nav-text" : "",
+            isMarketing && location.pathname.startsWith("/community")
+              ? "site-nav-link-active"
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined}
+        >
           Community
         </Link>
         {signedIn ? (
           <>
-            <Link to="/studio" onClick={closeMenu}>
-              My studio
-            </Link>
-            <Link to="/settings" onClick={closeMenu}>
-              Settings
-            </Link>
-            <a href="qdj://open" className="site-nav-cta-app" onClick={closeMenu}>
-              Open booth app
-            </a>
+            {!isMarketing && (
+              <Link to="/studio" onClick={closeMenu}>
+                My studio
+              </Link>
+            )}
+            {isMarketing ? (
+              <Link to="/studio" onClick={closeMenu} className="site-nav-text">
+                Studio
+              </Link>
+            ) : (
+              <Link to="/settings" onClick={closeMenu}>
+                Settings
+              </Link>
+            )}
+            {!isMarketing && (
+              <a href="qdj://open" className="site-nav-cta-app" onClick={closeMenu}>
+                Open booth app
+              </a>
+            )}
             <button
               type="button"
               className="site-nav-btn site-nav-btn-block"
@@ -88,7 +127,7 @@ export default function SiteNav({ overHero }: SiteNavProps) {
           </>
         ) : (
           <>
-            <Link to="/login" onClick={closeMenu}>
+            <Link to="/login" onClick={closeMenu} className={isMarketing ? "site-nav-signin" : undefined}>
               Sign in
             </Link>
             <Link to="/register" className="site-nav-cta" onClick={closeMenu}>

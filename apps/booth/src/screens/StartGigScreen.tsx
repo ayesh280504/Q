@@ -1,9 +1,14 @@
 import type { DjProfile, LibrarySource } from "@q/shared";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import BoothAmbient from "../components/BoothAmbient";
+import BoothButton from "../components/BoothButton";
+import BoothKicker from "../components/BoothKicker";
 import LibraryProfilePicker from "../components/LibraryProfilePicker";
+import QLogo from "../components/QLogo";
 import { crowdProfileUrl } from "../api";
-import { colors, type as typeScale } from "../theme";
+import { colors, fonts, spacing, type } from "../theme";
 
 type Props = {
   profile: DjProfile;
@@ -27,67 +32,104 @@ export default function StartGigScreen({
   const permanentUrl = crowdProfileUrl(profile.handle);
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <StatusBar style="light" />
-      <Text style={styles.brand}>@{profile.handle}</Text>
-      <Text style={styles.sub}>Start tonight&apos;s gig — unlocks your permanent QR.</Text>
-      <View style={styles.qrCard}>
-        <Text style={styles.qrLabel}>Print-once link</Text>
-        <Text style={styles.qrUrl} selectable>
-          {permanentUrl}
-        </Text>
-      </View>
-      <LibraryProfilePicker value={librarySource} onChange={onLibrarySource} />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable
-        style={[styles.btnPrimary, !librarySource && styles.btnDisabled]}
-        onPress={onStart}
-        disabled={busy || !librarySource}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.btnText}>Start gig</Text>
-        )}
-      </Pressable>
-      <Pressable style={styles.btnGhost} onPress={onSignOut}>
-        <Text style={styles.btnGhostText}>Sign out</Text>
-      </Pressable>
-    </ScrollView>
+    <View style={styles.root}>
+      <BoothAmbient />
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.headerRow}>
+            <QLogo size={36} />
+            <Text style={styles.handle}>@{profile.handle}</Text>
+          </View>
+          <BoothKicker>{`// Tonight's gig`}</BoothKicker>
+          <Text style={styles.headlinePrimary}>Start the</Text>
+          <Text style={styles.headlineAccent}>set.</Text>
+          <Text style={styles.sub}>
+            Unlocks your crowd QR. Laptop can stay on LAN — phone polls for requests while you mix.
+          </Text>
+          <View style={styles.qrCard}>
+            <Text style={styles.qrLabel}>Permanent crowd link</Text>
+            <Text style={styles.qrUrl} selectable>
+              {permanentUrl}
+            </Text>
+          </View>
+          <LibraryProfilePicker value={librarySource} onChange={onLibrarySource} />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <BoothButton
+            onPress={onStart}
+            disabled={busy || !librarySource}
+            busy={busy}
+            style={styles.startBtn}
+          >
+            Start gig →
+          </BoothButton>
+          <BoothButton variant="ghost" onPress={onSignOut}>
+            Sign out
+          </BoothButton>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 20, paddingBottom: 40 },
-  brand: { fontSize: typeScale.hero, fontWeight: "800", color: colors.text },
-  sub: { color: colors.muted, marginTop: 8, marginBottom: 16, lineHeight: 22 },
+  safe: { flex: 1 },
+  content: { padding: spacing.pad, paddingBottom: 40 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  handle: {
+    fontFamily: fonts.monoBold,
+    fontSize: type.body,
+    color: colors.pink,
+    letterSpacing: 0.5,
+  },
+  headlinePrimary: {
+    fontFamily: fonts.displayBlack,
+    fontSize: type.hero,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  headlineAccent: {
+    fontFamily: fonts.displayBlack,
+    fontSize: type.hero,
+    color: colors.pink,
+    fontStyle: "italic",
+    letterSpacing: -0.5,
+    marginBottom: 10,
+  },
+  sub: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    marginBottom: 16,
+    lineHeight: 22,
+  },
   qrCard: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: spacing.radiusLg,
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
+    marginBottom: 4,
   },
-  qrLabel: { color: colors.dim, fontSize: typeScale.caption, textTransform: "uppercase" },
-  qrUrl: { color: colors.accent, marginTop: 6, fontSize: typeScale.caption },
-  btnPrimary: {
-    backgroundColor: colors.accent,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
+  qrLabel: {
+    fontFamily: fonts.mono,
+    fontSize: type.mono,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: colors.purple,
+  },
+  qrUrl: {
+    color: colors.cyan,
     marginTop: 8,
+    fontSize: type.caption,
+    fontFamily: fonts.mono,
+    lineHeight: 18,
   },
-  btnDisabled: { opacity: 0.45 },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: typeScale.body },
-  btnGhost: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  btnGhostText: { color: colors.muted },
-  error: { color: "#fca5a5", marginBottom: 8 },
+  startBtn: { marginTop: 8 },
+  error: { color: "#fca5a5", marginBottom: 8, fontFamily: fonts.body },
 });
