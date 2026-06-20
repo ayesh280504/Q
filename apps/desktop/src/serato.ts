@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { parseSeratoCrate, parseSeratoCrates, type SeratoParseResult } from "@q/serato";
+import { parseSeratoCrate, parseSeratoCrates, parseSeratoDatabaseV2, mergeSeratoLibraryMeta, type SeratoParseResult } from "@q/serato";
 import { isCratePrivate, type PrivacyFilters } from "./lib/privacyFilter";
 import { isCrateActive, type CrateSelection } from "./lib/crateSelection";
 
@@ -53,6 +53,21 @@ function emptyResult(sourcePath: string, skipped: string[], inactive: string[]):
   };
 }
 
+async function mergeDatabaseMeta(result: SeratoImportResult): Promise<SeratoImportResult> {
+  try {
+    const bytes = await invoke<number[] | null>("read_serato_database_v2");
+    if (!bytes?.length) return result;
+    const db = parseSeratoDatabaseV2(new Uint8Array(bytes), "database V2");
+    if (db.tracks.length === 0) return result;
+    return {
+      ...result,
+      tracks: mergeSeratoLibraryMeta(result.tracks, db.tracks),
+    };
+  } catch {
+    return result;
+  }
+}
+
 export async function importSeratoAuto(
   opts?: SeratoImportOptions,
 ): Promise<SeratoImportResult | null> {
@@ -68,11 +83,11 @@ export async function importSeratoAuto(
   const crates = await Promise.all(
     keep.map(async (path) => ({ path, bytes: await readCrateFile(path) })),
   );
-  return {
+  return mergeDatabaseMeta({
     ...parseSeratoCrates(crates, dir),
     skippedCrates: privacySkipped,
     inactiveCrates: inactive,
-  };
+  });
 }
 
 export async function importSeratoFromDialog(
@@ -95,7 +110,7 @@ export async function importSeratoFromDialog(
       return emptyResult(file, [file], []);
     }
     const bytes = await readCrateFile(file);
-    return { ...parseSeratoCrate(bytes, file), skippedCrates: [], inactiveCrates: [] };
+    return mergeDatabaseMeta({ ...parseSeratoCrate(bytes, file), skippedCrates: [], inactiveCrates: [] });
   }
 
   const allFiles = await invoke<string[]>("list_crate_files", { dir: selected });
@@ -107,11 +122,11 @@ export async function importSeratoFromDialog(
   const crates = await Promise.all(
     keep.map(async (path) => ({ path, bytes: await readCrateFile(path) })),
   );
-  return {
+  return mergeDatabaseMeta({
     ...parseSeratoCrates(crates, selected),
     skippedCrates: privacySkipped,
     inactiveCrates: inactive,
-  };
+  });
 }
 
 /** Enumerate available Serato crates without applying any filters. */

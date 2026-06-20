@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 mod prolink;
 mod sentinel;
 mod ble_beacon;
+mod serato_sqlite;
 
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
@@ -240,6 +241,17 @@ fn get_lan_ipv4() -> Option<String> {
     Some(ip.to_string())
 }
 
+fn serato_database_v2_path() -> Option<PathBuf> {
+    music_dir().map(|m| m.join("_Serato_").join("database V2"))
+}
+
+/// Serato library database bytes (`Music/_Serato_/database V2`) for BPM/key enrichment.
+#[tauri::command]
+fn read_serato_database_v2() -> Option<Vec<u8>> {
+    let path = serato_database_v2_path()?;
+    fs::read(&path).ok()
+}
+
 fn serato_session_files_newest_first() -> Vec<PathBuf> {
     let Some(dir) = serato_history_sessions_dir() else {
         return Vec::new();
@@ -358,8 +370,10 @@ pub fn run() {
             detect_rekordbox_xml,
             rekordbox_pioneer_dir,
             detect_serato_subcrates,
+            read_serato_database_v2,
             get_serato_latest_session,
             list_serato_recent_sessions,
+            serato_sqlite::get_serato_sqlite_history,
             get_lan_ipv4,
             write_q_requests_playlist,
             write_serato_q_requests_crate,

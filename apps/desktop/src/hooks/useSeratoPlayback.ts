@@ -15,7 +15,32 @@ interface UseSeratoPlaybackOptions {
   onLinkStatus?: (status: SeratoLinkStatus) => void;
 }
 
-/** Poll Serato History — now playing, full session history, BPM/key when present. */
+type SqliteTrack = {
+  title: string;
+  artist: string;
+  bpm?: number;
+  key?: string;
+  played_at: number;
+  is_playing: boolean;
+};
+
+type SqliteHistory = {
+  session_id: number;
+  now_playing?: SqliteTrack | null;
+  entries: SqliteTrack[];
+};
+
+function sqliteToNowPlaying(track: SqliteTrack): NowPlaying {
+  return {
+    title: track.title,
+    artist: track.artist,
+    bpm: track.bpm != null && Number.isFinite(track.bpm) ? Math.round(track.bpm) : undefined,
+    key: track.key?.trim() || undefined,
+    playedAt: track.played_at > 0 ? track.played_at * 1000 : Date.now(),
+  };
+}
+
+/** Poll Serato live history — prefers DJ Pro 3.x `master.sqlite`, falls back to legacy `.session` files. */
 export function useSeratoPlayback({
   enabled,
   onNowPlaying,
@@ -39,7 +64,41 @@ export function useSeratoPlayback({
 
     let stopped = false;
 
-    const poll = async () => {
+    const applyNowPlaying = (activeNow: NowPlaying) => {
+      const key = `${activeNow.playedAt ?? 0}:${activeNow.title}:${activeNow.artist}:${activeNow.bpm ?? ""}:${activeNow.key ?? ""}`;
+      if (key === lastKeyRef.current) return;
+      lastKeyRef.current = key;
+      onNowPlayingRef.current(activeNow);
+    };
+
+    const pollSqlite = async (): Promise<boolean> => {
+      try {
+        const data = await invoke<SqliteHistory | null>("get_serato_sqlite_history");
+        if (stopped || !data?.entries?.length) return false;
+
+        onLinkStatusRef.current?.("ok");
+        onHistoryRef.current(
+          data.entries.map((e) => ({
+            title: e.title,
+            artist: e.artist,
+            playedAt: e.played_at > 0 ? e.played_at * 1000 : undefined,
+          })),
+        );
+
+        const live =
+          data.now_playing ??
+          data.entries.find((e) => e.is_playing) ??
+          data.entries[data.entries.length - 1];
+        if (!live) return false;
+
+        applyNowPlaying(sqliteToNowPlaying(live));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const pollSessionFiles = async () => {
       try {
         const paths = await invoke<string[]>("list_serato_recent_sessions", {
           limit: 5,
@@ -51,8 +110,6 @@ export function useSeratoPlayback({
           return;
         }
 
-        // Paths are newest-modified first. Use the active session file — do NOT
-        // pick max playedAt across old session files (shows wrong "now playing").
         let activeNow: NowPlaying | null = null;
         let activeHistory: PlayedTrack[] = [];
 
@@ -87,21 +144,16 @@ export function useSeratoPlayback({
 
         onLinkStatusRef.current?.("ok");
         onHistoryRef.current(activeHistory);
-
-        const key = `${activeNow.playedAt ?? 0}:${activeNow.title}:${activeNow.artist}:${activeNow.bpm ?? ""}:${activeNow.key ?? ""}`;
-        if (key === lastKeyRef.current) return;
-        lastKeyRef.current = key;
-
-        onNowPlayingRef.current({
-          title: activeNow.title,
-          artist: activeNow.artist,
-          bpm: activeNow.bpm,
-          key: activeNow.key,
-          playedAt: activeNow.playedAt,
-        });
+        applyNowPlaying(activeNow);
       } catch {
         onLinkStatusRef.current?.("no_folder");
       }
+    };
+
+    const poll = async () => {
+      const fromSqlite = await pollSqlite();
+      if (stopped) return;
+      if (!fromSqlite) await pollSessionFiles();
     };
 
     void poll();

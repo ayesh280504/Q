@@ -74,9 +74,9 @@ export default function CommandNowPlaying({
       ? "Can't find Serato History — play a track in Serato first"
       : djSoftware === "serato" && seratoActive && seratoLinkStatus === "empty"
         ? "Serato History is empty — start today's session"
-        : djSoftware === "serato" && seratoActive
-          ? "Play a track in Serato (updates in ~1s)…"
-          : djSoftware === "serato"
+        : djSoftware === "serato" && seratoActive && seratoLinkStatus === "ok"
+          ? "Live from Serato — updates in ~1s"
+          : djSoftware === "serato" && seratoActive
             ? "Serato auto-detect when gig is active"
             : rekordboxIdleMessage(prolinkStatus, autoAdvanceActive ?? false);
 

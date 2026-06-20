@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import CrowdHero from "../components/CrowdHero";
+import AcceptCelebration from "../components/AcceptCelebration";
 import PostGigCta from "../components/PostGigCta";
 import PostGigRating from "../components/PostGigRating";
 import PublicWall from "../components/PublicWall";
@@ -40,7 +41,7 @@ export default function RequestPage() {
     title: string;
     reason?: DeclineReason;
   } | null>(null);
-  const [acceptToast, setAcceptToast] = useState<string | null>(null);
+  const [acceptCelebration, setAcceptCelebration] = useState<string | null>(null);
   const [pendingNote, setPendingNote] = useState("");
   const [showNoteField, setShowNoteField] = useState(false);
   const [manualTitle, setManualTitle] = useState("");
@@ -50,12 +51,6 @@ export default function RequestPage() {
   );
 
   const TOAST_MS = 5000;
-
-  useEffect(() => {
-    if (!acceptToast) return;
-    const t = window.setTimeout(() => setAcceptToast(null), TOAST_MS);
-    return () => clearTimeout(t);
-  }, [acceptToast]);
 
   useEffect(() => {
     if (!declineToast) return;
@@ -204,7 +199,7 @@ export default function RequestPage() {
           if (res.status === "declined") {
             setDeclineToast({ title: info.title, reason: res.declineReason });
           } else if (res.status === "accepted") {
-            setAcceptToast(`“${info.title}” — the DJ accepted your request!`);
+            setAcceptCelebration(info.title);
           }
         } catch {
           /* network blip — try again next tick */
@@ -432,18 +427,11 @@ export default function RequestPage() {
         </form>
       </section>
 
-      {acceptToast && (
-        <div className="toast toast-accepted" role="status">
-          <strong>{acceptToast}</strong>
-          <button
-            type="button"
-            className="toast-dismiss"
-            onClick={() => setAcceptToast(null)}
-            aria-label="Dismiss"
-          >
-            ✕
-          </button>
-        </div>
+      {acceptCelebration && (
+        <AcceptCelebration
+          trackTitle={acceptCelebration}
+          onDone={() => setAcceptCelebration(null)}
+        />
       )}
       {declineToast && (
         <div className="toast toast-declined" role="status">

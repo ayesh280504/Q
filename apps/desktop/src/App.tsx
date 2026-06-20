@@ -768,22 +768,37 @@ export default function App() {
     history: PlayedTrack[],
     np: NowPlaying | null,
   ): UpNextItem {
-    // Look up the imported library entry so the queue item knows the track
-    // length — the Rekordbox auto-advance timer keys off this.
-    const local =
-      (request.matchedTrackId && importIndexRef.current.get(request.matchedTrackId)) ||
-      (request.externalId && importIndexRef.current.get(request.externalId)) ||
-      undefined;
+    const local = lookupInImportIndex(importIndexRef.current, {
+      matchedTrackId: request.matchedTrackId,
+      externalId: request.externalId,
+      title: request.title,
+      artist: request.artist,
+    });
     return {
       requestId: request.id,
       title: request.title,
       artist: request.artist,
-      bpm: request.bpm ?? np?.bpm,
-      key: request.key ?? np?.key,
+      bpm: request.bpm ?? local?.bpm ?? np?.bpm,
+      key: request.key ?? local?.key ?? np?.key,
       durationSec: local?.durationSec,
       playedEarlierTonight:
         request.playedEarlierTonight ??
         wasPlayedEarlierTonight(request.title, request.artist, history, np),
+    };
+  }
+
+  function enrichRequestMeta(request: CrowdRequest): CrowdRequest {
+    const local = lookupInImportIndex(importIndexRef.current, {
+      matchedTrackId: request.matchedTrackId,
+      externalId: request.externalId,
+      title: request.title,
+      artist: request.artist,
+    });
+    if (!local?.bpm && !local?.key && !request.bpm && !request.key) return request;
+    return {
+      ...request,
+      bpm: request.bpm ?? local?.bpm,
+      key: request.key ?? local?.key,
     };
   }
 
@@ -2134,7 +2149,9 @@ export default function App() {
               </p>
             )}
             <ul className="requests-list">
-              {pending.map((r) => (
+              {pending.map((raw) => {
+              const r = enrichRequestMeta(raw);
+              return (
               <li key={r.id} className="request">
                 <div className="request-top">
                   {pendingIds.has(r.id) && <span className="badge pending">Queued to sync</span>}
@@ -2187,7 +2204,8 @@ export default function App() {
                   />
                 </div>
               </li>
-            ))}
+              );
+              })}
             </ul>
           </div>
         </section>

@@ -246,6 +246,45 @@ export function parseSeratoCrate(bytes: Uint8Array, sourcePath: string): SeratoP
   };
 }
 
+/** Full Serato library snapshot — richer BPM/key than individual crate files. */
+export function parseSeratoDatabaseV2(bytes: Uint8Array, sourcePath: string): SeratoParseResult {
+  const tree = decodeCrate(bytes);
+  const tracks = dedupeTracks(extractFromOtrk(tree));
+  return {
+    tracks,
+    sourcePath,
+    crateFilesRead: 0,
+    crates: [],
+  };
+}
+
+/** Merge crate import with database metadata (BPM/key/duration) when paths match. */
+export function mergeSeratoLibraryMeta(
+  primary: TrackRecord[],
+  database: TrackRecord[],
+): TrackRecord[] {
+  const byPath = new Map<string, TrackRecord>();
+  const byTitleArtist = new Map<string, TrackRecord>();
+  for (const t of database) {
+    if (t.externalId) byPath.set(t.externalId.toLowerCase(), t);
+    const key = `${t.title}\0${t.artist}`.toLowerCase();
+    if (!byTitleArtist.has(key)) byTitleArtist.set(key, t);
+  }
+  return primary.map((t) => {
+    const fromPath = t.externalId ? byPath.get(t.externalId.toLowerCase()) : undefined;
+    const fromNames = byTitleArtist.get(`${t.title}\0${t.artist}`.toLowerCase());
+    const meta = fromPath ?? fromNames;
+    if (!meta) return t;
+    return {
+      ...t,
+      bpm: t.bpm ?? meta.bpm,
+      key: t.key ?? meta.key,
+      durationSec: t.durationSec ?? meta.durationSec,
+      album: t.album ?? meta.album,
+    };
+  });
+}
+
 export function parseSeratoCrates(
   crates: Array<{ path: string; bytes: Uint8Array }>,
   sourceLabel: string,
