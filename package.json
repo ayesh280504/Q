@@ -1,7 +1,7 @@
 {
   "name": "q",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Q — DJ request queue with crowd portal and Rekordbox library sync",
   "workspaces": [
     "packages/*",
@@ -17,8 +17,12 @@
     "start:web": "npm run build -w @q/web && npm run preview -w @q/web",
     "hero:frames": "node scripts/generate-hero-manifest.mjs",
     "dev:desktop": "npm run dev -w @q/desktop",
-    "dev:booth": "npm run sync:env && npm run dev -w @q/booth",
+    "dev:booth": "npm run dev -w @q/booth",
+    "dev:booth:lan": "npm run sync:env && npm run dev -w @q/booth",
+    "dev:crowd-mobile": "npm run dev -w @q/crowd-mobile",
     "sync:env": "node scripts/sync-lan-env.mjs",
+    "dev:check": "node scripts/dev-check.mjs",
+    "check:prod": "node scripts/check-prod.mjs",
     "build": "npm run build -w @q/shared && npm run build -w @q/rekordbox && npm run build -w @q/serato && npm run build -w @q/api && npm run build -w @q/crowd && npm run build -w @q/web",
     "build:desktop": "npm run build -w @q/desktop"
   },

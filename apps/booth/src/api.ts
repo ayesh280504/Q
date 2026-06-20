@@ -8,6 +8,7 @@ import type {
   SessionLiveStatus,
   SyncStatus,
   TransitionSuggestion,
+  MixSuggestionHit,
 } from "@q/shared";
 
 const API_BASE = process.env.EXPO_PUBLIC_Q_API_URL || "http://localhost:8787";
@@ -105,5 +106,30 @@ export function updateRequest(
       djToken,
       body: JSON.stringify(body),
     },
+  );
+}
+
+export function fetchMixSuggestions(
+  sessionId: string,
+  djToken: string,
+  opts: {
+    fromLive?: boolean;
+    title?: string;
+    artist?: string;
+    bpm?: number;
+    key?: string;
+    limit?: number;
+  },
+) {
+  const params = new URLSearchParams();
+  if (opts.fromLive) params.set("fromLive", "1");
+  if (opts.title) params.set("title", opts.title);
+  if (opts.artist) params.set("artist", opts.artist);
+  if (opts.bpm != null) params.set("bpm", String(opts.bpm));
+  if (opts.key) params.set("key", opts.key);
+  if (opts.limit != null) params.set("limit", String(opts.limit));
+  return api<{ suggestions: MixSuggestionHit[] }>(
+    `/sessions/${sessionId}/mix-suggestions?${params.toString()}`,
+    { djToken },
   );
 }

@@ -1,12 +1,17 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import CrowdHero from "../components/CrowdHero";
+import PostGigCta from "../components/PostGigCta";
+import PostGigRating from "../components/PostGigRating";
+import PublicWall from "../components/PublicWall";
+import ShareBooth from "../components/ShareBooth";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
+import { useSessionLivePoll } from "../hooks/useSessionLivePoll";
 import type { CrowdRequest, DeclineReason, Session, TrackSearchHit } from "@q/shared";
 import { DECLINE_REASON_LABELS, sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
 
 /**
- * The API also sanitizes, but we run it again here so existing libraries
+ * The API also sanitizes, but we run again here so existing libraries
  * (uploaded before this build) display cleanly without re-import.
  */
 function cleanHit(t: TrackSearchHit): TrackSearchHit {
@@ -17,12 +22,17 @@ function cleanHit(t: TrackSearchHit): TrackSearchHit {
   };
 }
 
+function sessionStillLive(session: Session | null): boolean {
+  return session != null && session.isLive !== false;
+}
+
 export default function RequestPage() {
   const { code: rawCode } = useParams<{ code: string }>();
   const code = rawCode?.trim().toUpperCase();
   const [session, setSession] = useState<Session | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TrackSearchHit[]>([]);
+  const [emptySearchHint, setEmptySearchHint] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -30,36 +40,53 @@ export default function RequestPage() {
     title: string;
     reason?: DeclineReason;
   } | null>(null);
+  const [acceptToast, setAcceptToast] = useState<string | null>(null);
+  const [pendingNote, setPendingNote] = useState("");
+  const [showNoteField, setShowNoteField] = useState(false);
   const [manualTitle, setManualTitle] = useState("");
   const [manualArtist, setManualArtist] = useState("");
   const trackedRequestsRef = useRef<Map<string, { title: string; status: "pending" | "accepted" | "declined" }>>(
     new Map(),
   );
 
+  const loadSession = useCallback(async () => {
+    if (!code) return null;
+    const data = await api<{ session: Session }>(`/sessions/${code}`);
+    setSession(data.session);
+    return data.session;
+  }, [code]);
+
   useEffect(() => {
     if (!code) return;
-    api<{ session: Session }>(`/sessions/${code}`)
-      .then((d) => setSession(d.session))
-      .catch((e) => {
-        const msg = e instanceof Error ? e.message : "";
-        if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-          setError(
-            "Cannot reach the Q server. On your laptop, run npm run dev:stack and use the same Wi‑Fi.",
-          );
-        } else if (msg === "Session not found") {
-          setError(
-            `No gig found for code “${code}”. Copy the URL from the DJ app after Start gig.`,
-          );
-        } else {
-          setError(msg || "Could not load this session.");
-        }
-      });
-  }, [code]);
+    loadSession().catch((e) => {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        setError(
+          "Cannot reach the Q server. On your laptop, run npm run dev:stack and use the same Wi‑Fi.",
+        );
+      } else if (msg === "Session not found") {
+        setError(
+          `No gig found for code “${code}”. Copy the URL from the DJ app after Start gig.`,
+        );
+      } else {
+        setError(msg || "Could not load this session.");
+      }
+    });
+  }, [code, loadSession]);
+
+  const refreshWhenEnded = useCallback(() => {
+    loadSession().catch(() => {
+      /* network blip */
+    });
+  }, [loadSession]);
+
+  useSessionLivePoll(code, sessionStillLive(session), refreshWhenEnded);
 
   const search = useCallback(
     async (q: string) => {
-      if (!code || q.length < 2) {
+      if (!code || q.length < 2 || !sessionStillLive(session)) {
         setResults([]);
+        setEmptySearchHint(null);
         return;
       }
       setLoading(true);
@@ -67,8 +94,11 @@ export default function RequestPage() {
         const data = await api<{
           results: TrackSearchHit[];
           mode: "spotify" | "library" | "none";
+          streamingSearch?: boolean;
+          hint?: string;
         }>(`/sessions/${code}/tracks/search?q=${encodeURIComponent(q)}`);
         setResults(data.results.map(cleanHit));
+        setEmptySearchHint(data.results.length === 0 ? (data.hint ?? null) : null);
       } catch (e) {
         setResults([]);
         const msg = e instanceof Error ? e.message : "";
@@ -79,7 +109,7 @@ export default function RequestPage() {
         setLoading(false);
       }
     },
-    [code],
+    [code, session],
   );
 
   useEffect(() => {
@@ -95,6 +125,7 @@ export default function RequestPage() {
     bpm?: number;
     key?: string;
     albumArtUrl?: string;
+    message?: string;
   }) {
     if (!code) return;
     setError(null);
@@ -116,8 +147,15 @@ export default function RequestPage() {
       setResults([]);
       setManualTitle("");
       setManualArtist("");
+      setPendingNote("");
+      setShowNoteField(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send request");
+      const msg = e instanceof Error ? e.message : "Could not send request";
+      if (msg.toLowerCase().includes("set is over") || msg.includes("gig_ended")) {
+        setSession((prev) => (prev ? { ...prev, isLive: false } : prev));
+        return;
+      }
+      setError(msg);
     }
   }
 
@@ -127,7 +165,7 @@ export default function RequestPage() {
    * inline on the crowd page.
    */
   useEffect(() => {
-    if (!code) return;
+    if (!code || !sessionStillLive(session)) return;
     let cancelled = false;
     const timer = window.setInterval(async () => {
       const active = Array.from(trackedRequestsRef.current.entries()).filter(
@@ -145,6 +183,8 @@ export default function RequestPage() {
           trackedRequestsRef.current.set(requestId, { ...info, status: res.status });
           if (res.status === "declined") {
             setDeclineToast({ title: info.title, reason: res.declineReason });
+          } else if (res.status === "accepted") {
+            setAcceptToast(`“${info.title}” — the DJ accepted your request!`);
           }
         } catch {
           /* network blip — try again next tick */
@@ -155,7 +195,7 @@ export default function RequestPage() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [code]);
+  }, [code, session]);
 
   function onManual(e: FormEvent) {
     e.preventDefault();
@@ -163,15 +203,38 @@ export default function RequestPage() {
     submitRequest({
       title: manualTitle.trim(),
       artist: manualArtist.trim() || "Unknown Artist",
+      message: pendingNote.trim() || undefined,
     });
   }
 
   if (!code) return null;
 
+  const djName = session?.displayName ?? session?.name;
+  const gigEnded = session != null && session.isLive === false;
+
+  if (gigEnded) {
+    return (
+      <div className="app post-gig-page">
+        <CrowdHero
+          kicker={`// ${session.code}`}
+          title={
+            <>
+              {djName}
+              <span className="crowd-title-accent"> · ended</span>
+            </>
+          }
+        />
+        <PostGigRating sessionCode={session.code} displayName={djName ?? "the DJ"} />
+        <PostGigCta
+          variant="ended"
+          displayName={djName ?? "the DJ"}
+          handle={session.djHandle}
+        />
+      </div>
+    );
+  }
+
   const streaming = session?.streamingSearch ?? false;
-  // The DJ's gig-start library profile drives whether we hit Spotify, the
-  // local library, or both. We mirror the wording here so guests know what
-  // they're searching across without having to think about it.
   const librarySource = session?.librarySource;
   const searchScope: "local" | "spotify" | "both" =
     librarySource === "local"
@@ -195,8 +258,6 @@ export default function RequestPage() {
       : searchScope === "both"
         ? "Search any song — Spotify hits and DJ's own crate both show up"
         : "Search the DJ's synced library";
-
-  const djName = session?.displayName ?? session?.name;
 
   return (
     <div className="app">
@@ -227,17 +288,26 @@ export default function RequestPage() {
         </p>
       )}
 
+      {session && !error && (
+        <ShareBooth sessionCode={session.code} displayName={djName ?? session.name} />
+      )}
+
+      {session && session.publicWall && !error && <PublicWall sessionCode={session.code} />}
+
       <input
         className="search"
         placeholder={searchPlaceholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         autoComplete="off"
+        disabled={!session}
       />
 
       {loading && !error && <p className="sub">Searching…</p>}
       {!loading && query.length >= 2 && results.length === 0 && (
-        <p className="sub">No matches — try different words or request manually below.</p>
+        <p className="sub search-empty">
+          {emptySearchHint ?? "No matches — try different words or request manually below."}
+        </p>
       )}
 
       <ul className="results">
@@ -283,6 +353,7 @@ export default function RequestPage() {
                   bpm: t.bpm,
                   key: t.key,
                   albumArtUrl: t.albumArtUrl,
+                  message: pendingNote.trim() || undefined,
                 })
               }
             >
@@ -291,6 +362,27 @@ export default function RequestPage() {
           </li>
         ))}
       </ul>
+
+      {session?.allowShoutouts && (
+        <div className="shoutout-field">
+          <button
+            type="button"
+            className="shoutout-toggle"
+            onClick={() => setShowNoteField((v) => !v)}
+          >
+            {showNoteField ? "Hide note" : "Add a note for the DJ"}
+          </button>
+          {showNoteField && (
+            <input
+              className="search shoutout-input"
+              placeholder="Shoutout, dedication, or vibe note (optional)"
+              value={pendingNote}
+              onChange={(e) => setPendingNote(e.target.value.slice(0, 200))}
+              maxLength={200}
+            />
+          )}
+        </div>
+      )}
 
       <section className="manual">
         <h2>Don&apos;t see it?</h2>
@@ -310,12 +402,25 @@ export default function RequestPage() {
             value={manualArtist}
             onChange={(e) => setManualArtist(e.target.value)}
           />
-          <button type="submit" className="btn ghost" style={{ width: "100%" }}>
+          <button type="submit" className="btn ghost" style={{ width: "100%" }} disabled={!session}>
             Request anyway
           </button>
         </form>
       </section>
 
+      {acceptToast && (
+        <div className="toast toast-accepted" role="status">
+          <strong>{acceptToast}</strong>
+          <button
+            type="button"
+            className="toast-dismiss"
+            onClick={() => setAcceptToast(null)}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {declineToast && (
         <div className="toast toast-declined" role="status">
           <strong>

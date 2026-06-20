@@ -20,6 +20,8 @@ import {
 import { importRekordboxAuto, importRekordboxFromDialog } from "./rekordbox";
 import { importSeratoAuto, importSeratoFromDialog } from "./serato";
 import QLogo from "./components/QLogo";
+import MixSuggestionsPanel from "./components/MixSuggestionsPanel";
+import CommandNowPlaying from "./components/CommandNowPlaying";
 import NowPlayingBar from "./components/NowPlayingBar";
 import QrSticker from "./components/QrSticker";
 import WelcomeTour from "./components/WelcomeTour";
@@ -38,6 +40,26 @@ import {
   LIBRARY_SOURCE_LABELS,
   type LibrarySource,
 } from "./lib/libraryProfile";
+import { loadDjSoftware, saveDjSoftware, type DjSoftware } from "./lib/djSoftwarePref";
+import {
+  loadPublicWallPref,
+  savePublicWallPref,
+  loadAllowShoutoutsPref,
+  saveAllowShoutoutsPref,
+} from "./lib/boothSessionPrefs";
+import {
+  alertNewRequest,
+  loadRequestAlertsEnabled,
+  saveRequestAlertsEnabled,
+  ensureNotificationPermission,
+} from "./lib/requestAlert";
+import { startFileDrag } from "./lib/fileDrag";
+import {
+  startBleBeacon,
+  stopBleBeacon,
+  classifyBleError,
+  type BleBeaconState,
+} from "./lib/bleBeacon";
 import {
   enterOverlayMode,
   exitOverlayMode,
@@ -132,8 +154,6 @@ function saveAutoAdvance(on: boolean) {
 }
 const WEB_URL =
   import.meta.env.VITE_Q_WEB_URL?.replace(/\/$/, "") || "http://localhost:5174";
-type DjSoftware = "rekordbox" | "serato";
-
 function loadPlan(): PlanTier {
   try {
     return localStorage.getItem(PLAN_KEY) === "pro" ? "pro" : "free";
@@ -234,7 +254,11 @@ export default function App() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [djSoftware, setDjSoftware] = useState<DjSoftware>("rekordbox");
+  const [djSoftware, setDjSoftwareState] = useState<DjSoftware>(loadDjSoftware);
+  const setDjSoftware = useCallback((next: DjSoftware) => {
+    setDjSoftwareState(next);
+    saveDjSoftware(next);
+  }, []);
   const [outbox, setOutbox] = useState({ decisions: 0, library: false });
   const [serverPending, setServerPending] = useState(0);
   const [djDisplayName, setDjDisplayName] = useState(loadDjDisplayName);
@@ -242,6 +266,11 @@ export default function App() {
   const [maxPerGuest, setMaxPerGuest] = useState(3);
   const [pinWindow, setPinWindow] = useState(false);
   const [dockMode, setDockMode] = useState(loadDockMode);
+  const [settingsOpen, setSettingsOpen] = useState(true);
+
+  useEffect(() => {
+    setSettingsOpen(!gig);
+  }, [gig?.sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -294,6 +323,10 @@ export default function App() {
   const [lanIpv4, setLanIpv4] = useState<string | null>(null);
   const [spotifyCrowdSearch, setSpotifyCrowdSearch] = useState(false);
   const [requestPulse, setRequestPulse] = useState(false);
+  const [publicWall, setPublicWall] = useState(loadPublicWallPref);
+  const [allowShoutouts, setAllowShoutouts] = useState(loadAllowShoutoutsPref);
+  const [requestAlerts, setRequestAlerts] = useState(loadRequestAlertsEnabled);
+  const [bleBeacon, setBleBeacon] = useState<BleBeaconState>("off");
   const [startGigPromptOpen, setStartGigPromptOpen] = useState(false);
   const [privacyFilters, setPrivacyFilters] = useState<PrivacyFilters>(() => loadPrivacyFilters());
   const [privateHidden, setPrivateHidden] = useState(0);
@@ -435,6 +468,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!djSoftwareSentinel) return;
+    if (djSoftwareSentinel.serato && !djSoftwareSentinel.rekordbox) {
+      setDjSoftware("serato");
+    } else if (djSoftwareSentinel.rekordbox && !djSoftwareSentinel.serato) {
+      setDjSoftware("rekordbox");
+    }
+  }, [djSoftwareSentinel, setDjSoftware]);
+
+  useEffect(() => {
     const base = import.meta.env.VITE_Q_API_URL || "http://localhost:8787";
     void fetch(`${base}/health`)
       .then((r) => r.json())
@@ -564,6 +606,9 @@ export default function App() {
     }
     const n = requests.filter((r) => r.status === "pending").length;
     if (n > prevPendingCountRef.current) {
+      const pendingNow = requests.filter((r) => r.status === "pending");
+      const newest = pendingNow[pendingNow.length - 1];
+      if (newest) alertNewRequest(newest.title, newest.artist);
       setRequestPulse(true);
       const t = window.setTimeout(() => setRequestPulse(false), 2600);
       prevPendingCountRef.current = n;
@@ -593,6 +638,24 @@ export default function App() {
         /* browser build or invoke unavailable */
       });
   }, []);
+
+  /** BLE proximity beacon — advertises Q-CODE while gig is live (Windows). */
+  useEffect(() => {
+    if (!gig?.code) {
+      void stopBleBeacon().then(() => setBleBeacon("off"));
+      return;
+    }
+    let cancelled = false;
+    void startBleBeacon(gig.code).then((result) => {
+      if (cancelled) return;
+      if (result.ok) setBleBeacon("on");
+      else setBleBeacon(classifyBleError(result.error));
+    });
+    return () => {
+      cancelled = true;
+      void stopBleBeacon();
+    };
+  }, [gig?.code]);
 
   const seratoOn = Boolean(gig) && djSoftware === "serato";
   const rekordboxOn = Boolean(gig) && djSoftware === "rekordbox";
@@ -738,6 +801,22 @@ export default function App() {
     setQueue((prev) => prev.filter((p) => p.requestId !== item.requestId));
   }
 
+  async function pushLibrarySnapshot(): Promise<boolean> {
+    if (!gig || !online) return false;
+    const snap = lastImportRef.current;
+    if (!snap) return false;
+    const allowedTracks = snap.privateTracks.filter((t) => allowedOnce.has(t.externalId));
+    const localTracks = [...snap.publicTracks, ...allowedTracks];
+    if (localTracks.length === 0) return false;
+    try {
+      await syncLibrary(gig.sessionId, gig.djToken, localTracks);
+      return true;
+    } catch {
+      queueLibraryIfOffline(gig.sessionId, localTracks, false);
+      return false;
+    }
+  }
+
   async function syncNow() {
     if (!gig) return;
     if (!online) {
@@ -746,18 +825,28 @@ export default function App() {
     }
     setBusy(true);
     const result = await doSync(true);
+    let libraryUploaded = result?.librarySynced ?? false;
+    if (!libraryUploaded) {
+      libraryUploaded = await pushLibrarySnapshot();
+    }
     setBusy(false);
     if (result) {
       const parts: string[] = [];
       if (result.pulled > 0) parts.push(`${result.pulled} new`);
       if (result.pushedDecisions > 0) parts.push(`${result.pushedDecisions} decisions sent`);
-      if (result.librarySynced) parts.push("library uploaded");
+      if (libraryUploaded) parts.push("library uploaded");
       const pullNote = result.pullOk ? "" : " (couldn't refresh requests — weak signal; your queue is unchanged)";
-      setMessage(
-        parts.length > 0
-          ? `Synced: ${parts.join(", ")}. ${result.pendingOnServer} pending on server.${pullNote}`
-          : `Up to date. ${result.pendingOnServer} pending on server.${pullNote}`,
-      );
+      if (!lastImportRef.current && gig.trackCount === 0 && shouldImportLocalLibrary(librarySource)) {
+        setMessage(
+          `Up to date.${pullNote} Crowd search is empty until you Auto-import ${djSoftware === "rekordbox" ? "Rekordbox" : "Serato"} and Sync.`,
+        );
+      } else {
+        setMessage(
+          parts.length > 0
+            ? `Synced: ${parts.join(", ")}. ${result.pendingOnServer} pending on server.${pullNote}`
+            : `Up to date. ${result.pendingOnServer} pending on server.${pullNote}`,
+        );
+      }
     } else {
       setMessage("Sync timed out — Serato keeps playing. Try again when signal improves.");
     }
@@ -793,6 +882,8 @@ export default function App() {
           // Carry the DJ's library profile to the API so the crowd search
           // is scoped correctly from request #1.
           librarySource: librarySource ?? undefined,
+          publicWall,
+          allowShoutouts,
         },
         getAccountToken(),
       );
@@ -830,6 +921,43 @@ export default function App() {
       setMessage(e instanceof Error ? e.message : "Could not start gig");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveSessionFeatures(updates: { publicWall?: boolean; allowShoutouts?: boolean }) {
+    if (!gig) return;
+    setBusy(true);
+    try {
+      await updateSessionSettings(gig.sessionId, gig.djToken, updates);
+      if (updates.publicWall !== undefined) {
+        setPublicWall(updates.publicWall);
+        savePublicWallPref(updates.publicWall);
+      }
+      if (updates.allowShoutouts !== undefined) {
+        setAllowShoutouts(updates.allowShoutouts);
+        saveAllowShoutoutsPref(updates.allowShoutouts);
+      }
+      setMessage("Gig settings updated.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not save settings");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleRequestAlerts() {
+    const next = !requestAlerts;
+    setRequestAlerts(next);
+    saveRequestAlertsEnabled(next);
+    if (next) {
+      const ok = await ensureNotificationPermission();
+      setMessage(
+        ok
+          ? "Request alerts on — sound + desktop notification when a request lands."
+          : "Request alerts on — sound only (notifications blocked in system settings).",
+      );
+    } else {
+      setMessage("Request alerts off.");
     }
   }
 
@@ -1150,6 +1278,36 @@ export default function App() {
     ? crowdUrlForPhone(gig.crowdUrl, gig.code, lanIpv4)
     : "";
 
+  async function quickAddToCrate(externalId: string, title: string, artist: string) {
+    if (!gig) return;
+    try {
+      const result = await addToQueueCrate({
+        sessionId: gig.sessionId,
+        djSoftware,
+        track: { externalId, title, artist },
+        importIndex: importIndexRef.current,
+      });
+      if (result?.message) setMessage(result.message);
+    } catch {
+      setMessage("Couldn't add to Q Requests crate.");
+    }
+  }
+
+  function endGigNow() {
+    if (gig && online) {
+      void endSession(gig.sessionId, gig.djToken).catch(() => {
+        /* local clear still runs */
+      });
+    }
+    setGig(null);
+    saveGig(null);
+    setRequests([]);
+    setQueue([]);
+    setNowPlaying(null);
+    setPlayedHistory([]);
+    setProHints([]);
+  }
+
   async function toggleViewMode() {
     const next = !dockMode;
     setDockMode(next);
@@ -1209,7 +1367,8 @@ export default function App() {
   }
 
   return (
-    <div className={`shell ${dockMode ? "shell-dock" : ""}`}>
+    <div className={dockMode ? "shell shell-dock" : "command-center"}>
+      {!dockMode && <div className="command-ambient" aria-hidden />}
       <WelcomeTour />
       {updateBanner}
       <HiddenTracksInspector
@@ -1261,42 +1420,106 @@ export default function App() {
         </header>
       )}
 
-      <aside className={`panel ${dockMode ? "panel-dock-controls" : ""}`}>
-        {!dockMode && (
-          <>
-            <QLogo size={40} className="brand-mark" />
-            <p className="muted">DJ Command Center</p>
-          </>
-        )}
+      {!dockMode && (
+        <header className="command-header">
+          <div className="command-header-left">
+            <span className="command-header-brand">Q</span>
+            <span className="command-header-kicker">// Command Center</span>
+            {gig && (
+              <span className="command-live-pill">
+                <span className="command-live-dot" aria-hidden />
+                LIVE · {gig.displayName}
+              </span>
+            )}
+            {gig && bleBeacon === "on" && (
+              <span className="command-ble-pill" title="Guests on Android Chrome can open /nearby">
+                BLE nearby
+              </span>
+            )}
+            {gig && bleBeacon === "unsupported" && (
+              <span className="command-ble-pill command-ble-pill-muted" title="BLE beacon needs Windows or macOS with Bluetooth on">
+                BLE off
+              </span>
+            )}
+          </div>
+          <div className="command-header-actions">
+            <button
+              type="button"
+              className="command-btn-ghost"
+              onClick={() => setSettingsOpen((v) => !v)}
+            >
+              {settingsOpen ? "Close ×" : "Settings ⚙"}
+            </button>
+            <button
+              type="button"
+              className="command-btn-ghost"
+              onClick={() => void toggleViewMode()}
+            >
+              Mini overlay
+            </button>
+            {gig && (
+              <button
+                type="button"
+                className="command-btn-primary"
+                disabled={busy}
+                onClick={endGigNow}
+              >
+                End Gig
+              </button>
+            )}
+          </div>
+        </header>
+      )}
+
+      <div
+        className={
+          dockMode
+            ? "booth-panels-dock"
+            : `booth-panels command-grid ${settingsOpen ? "settings-open" : ""}`
+        }
+      >
+      <aside
+        className={
+          dockMode
+            ? "panel setup-panel panel-dock-controls"
+            : "command-settings setup-panel panel"
+        }
+      >
         {dockMode && <p className="pane-heading dock-setup-label">Setup</p>}
-        {!dockMode && (
-          <button type="button" className="btn ghost" style={{ marginTop: "0.5rem" }} onClick={() => void toggleViewMode()}>
-            Mini overlay
-          </button>
-        )}
 
         {!dockMode && (
           <>
-            <h4 className="settings-section-label">DJ software</h4>
+            <p className="command-settings-group-label command-settings-group-label--pink">
+              // DJ Software
+            </p>
             {djSoftwareSentinel && (
               <p className="muted sync-hint">
                 {djSoftwareSentinel.any_running
-                  ? "Serato/Rekordbox detected — live tracking can run."
+                  ? "Detected — live tracking can run."
                   : "Open Serato or Rekordbox to start file watchers."}
               </p>
             )}
-            <label className="field-label autostart-row">
-              <input
-                type="checkbox"
-                checked={autostartWanted}
-                onChange={(e) => {
-                  setAutostartWanted(e.target.checked);
-                  saveAutostartWanted(e.target.checked);
-                }}
-              />
-              Start Q with Windows (registry hook in Phase 1C)
-            </label>
+            {!dockMode && (
+              <label className="field-label autostart-row">
+                <input
+                  type="checkbox"
+                  checked={autostartWanted}
+                  onChange={(e) => {
+                    setAutostartWanted(e.target.checked);
+                    saveAutostartWanted(e.target.checked);
+                  }}
+                />
+                Start Q with Windows
+              </label>
+            )}
           </>
+        )}
+        {dockMode && djSoftwareSentinel && (
+          <p className="muted sync-hint">
+            {djSoftwareSentinel.any_running
+              ? "Serato/Rekordbox detected — live tracking can run."
+              : "Open Serato or Rekordbox to start file watchers."}
+          </p>
         )}
         <div className="software-tabs">
           <button
@@ -1315,6 +1538,11 @@ export default function App() {
           </button>
         </div>
 
+        {!dockMode && (
+          <p className="command-settings-group-label command-settings-group-label--purple">
+            // Tier
+          </p>
+        )}
         <div className={`software-tabs tier-tabs ${dockMode ? "hidden" : ""}`}>
           <button
             type="button"
@@ -1444,142 +1672,44 @@ export default function App() {
           </div>
         ) : (
           <>
-            <p className="muted" style={{ marginTop: "1rem" }}>
-              {gig.displayName} · code <strong>{gig.code}</strong>
+            <p className="gig-summary-line">
+              <strong>{gig.displayName}</strong> · {gig.code}
             </p>
-            <p className="muted url-line" title={gig.crowdUrl}>
-              Phone: {phoneCrowdUrl}
+            <p className="gig-summary-meta muted" title={phoneCrowdUrl}>
+              {gig.trackCount} tracks · {pending.length}/{gig.maxPendingRequests} pending
             </p>
-            <p className="muted">{gig.trackCount} tracks in local catalog</p>
-            {spotifyCrowdSearch && (
-              <p className="muted">Crowd search: Spotify (BPM + key on each request)</p>
-            )}
-            <p className="muted limits-line">
-              Limits: {pending.length}/{gig.maxPendingRequests} pending · {gig.maxRequestsPerGuest}/person
-            </p>
-            <h4 className="settings-section-label">Gig limits</h4>
-            <div className="gig-setup compact">
-              <label className="field-label">
-                QR name
-                <input
-                  className="field-input"
-                  value={gig.displayName}
-                  onChange={(e) => setGig({ ...gig, displayName: e.target.value })}
-                  onBlur={() => saveLimits({ displayName: gig.displayName })}
-                />
-              </label>
-              <label className="field-label">
-                Queue cap
-                <input
-                  className="field-input"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={gig.maxPendingRequests}
-                  onChange={(e) =>
-                    setGig({ ...gig, maxPendingRequests: Number(e.target.value) || 20 })
-                  }
-                  onBlur={() => saveLimits({ maxPendingRequests: gig.maxPendingRequests })}
-                />
-              </label>
-              <label className="field-label">
-                Per person
-                <input
-                  className="field-input"
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={gig.maxRequestsPerGuest}
-                  onChange={(e) =>
-                    setGig({ ...gig, maxRequestsPerGuest: Number(e.target.value) || 3 })
-                  }
-                  onBlur={() => saveLimits({ maxRequestsPerGuest: gig.maxRequestsPerGuest })}
-                />
-              </label>
-            </div>
-            <h4 className="settings-section-label">Window</h4>
-            <button type="button" className={`btn ghost ${pinWindow ? "active-pin" : ""}`} onClick={togglePinWindow}>
-              {pinWindow ? "Unpin window" : "Pin on top"}
-            </button>
-            <h4 className="settings-section-label">Work mode</h4>
-            <div className="booth-mode-toggle" role="group" aria-label="Booth work mode">
-              {(["crowd", "booth"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={`btn ghost booth-mode-btn ${boothWorkMode === mode ? "active" : ""}`}
-                  onClick={() => {
-                    setBoothWorkMode(mode);
-                    saveBoothWorkMode(mode);
-                  }}
-                >
-                  {BOOTH_WORK_MODE_META[mode].label}
-                </button>
-              ))}
-            </div>
-            <p className="muted sync-hint">{BOOTH_WORK_MODE_META[boothWorkMode].hint}</p>
-            <h4 className="settings-section-label">Crowd sync</h4>
-            <p className="muted sync-hint">
-              Requests use your hotspot in the background — never Serato. If Wi‑Fi drops, accept/decline
-              still works offline. Your music files never leave this laptop.
-            </p>
-            <label className="sync-poll-label">
-              Check for new requests
-              <select
-                className="sync-poll-select"
-                value={syncPollPreset}
-                onChange={(e) => {
-                  const next = e.target.value as SyncPollPreset;
-                  setSyncPollPreset(next);
-                  saveSyncPollPreset(next);
-                }}
-              >
-                {SYNC_POLL_PRESETS.map((p) => (
-                  <option key={p} value={p}>
-                    {syncPollPresetMeta(p).label}
-                  </option>
-                ))}
-              </select>
-              <small className="muted">{syncPollPresetMeta(syncPollPreset).hint}</small>
-            </label>
-            <h4 className="settings-section-label">Library</h4>
-            <div className="library-source-summary">
-              <span className="muted library-source-summary-label">Library profile:</span>
-              <strong>
-                {librarySource ? LIBRARY_SOURCE_LABELS[librarySource].title : "Not picked"}
-              </strong>
-              <LibraryProfilePicker
-                value={librarySource}
-                onChange={pickLibrarySource}
-                showHeading={false}
-              />
-            </div>
-            <button className="btn primary" onClick={syncNow} disabled={busy}>
-              Sync now
-            </button>
-            {shouldImportLocalLibrary(librarySource) ? (
-              <>
+
+            <div className="setup-actions">
+              <button className="btn primary" onClick={syncNow} disabled={busy}>
+                Sync now
+              </button>
+              {shouldImportLocalLibrary(librarySource) ? (
                 <button
                   className="btn ghost"
                   onClick={() => importLibrary("auto")}
                   disabled={busy}
                 >
-                  {djSoftware === "rekordbox" ? "Auto-import Rekordbox" : "Auto-import Serato"}
+                  {djSoftware === "rekordbox" ? "Import Rekordbox" : "Import Serato"}
                 </button>
-                <button
-                  className="btn ghost"
-                  onClick={() => importLibrary("file")}
-                  disabled={busy}
-                >
-                  {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates folder…"}
-                </button>
-              </>
-            ) : (
-              <p className="muted library-source-skip">
-                Spotify-only profile — Q doesn&apos;t need a local-library import. The crowd will
-                find tracks via Spotify search; you cue them up live in {djSoftware === "rekordbox" ? "Rekordbox" : "Serato"}.
+              ) : null}
+            </div>
+
+            <label className="field-label setup-compact-label">
+              Crowd search
+              <LibraryProfilePicker
+                value={librarySource}
+                onChange={pickLibrarySource}
+                showHeading={false}
+                variant="compact"
+              />
+            </label>
+
+            {shouldImportLocalLibrary(librarySource) ? null : (
+              <p className="muted setup-compact-hint">
+                Spotify profile — crowd searches Spotify; import not required.
               </p>
             )}
+
             {setupHint && (
               <LibrarySetupHint
                 kind={setupHint}
@@ -1590,14 +1720,157 @@ export default function App() {
                 onDismiss={() => setSetupHint(null)}
               />
             )}
-            {djSoftware === "rekordbox" && (
-              <>
-                <h4 className="settings-section-label">Live tracking</h4>
-                <div className="prolink-status">
-                  <span
-                    className={`prolink-dot prolink-dot-${prolinkStatus}`}
-                    aria-hidden
+
+            <details className="setup-details">
+              <summary>Limits &amp; window</summary>
+              <div className="gig-setup compact">
+                <label className="field-label">
+                  QR name
+                  <input
+                    className="field-input"
+                    value={gig.displayName}
+                    onChange={(e) => setGig({ ...gig, displayName: e.target.value })}
+                    onBlur={() => saveLimits({ displayName: gig.displayName })}
                   />
+                </label>
+                <label className="field-label">
+                  Queue cap
+                  <input
+                    className="field-input"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={gig.maxPendingRequests}
+                    onChange={(e) =>
+                      setGig({ ...gig, maxPendingRequests: Number(e.target.value) || 20 })
+                    }
+                    onBlur={() => saveLimits({ maxPendingRequests: gig.maxPendingRequests })}
+                  />
+                </label>
+                <label className="field-label">
+                  Per person
+                  <input
+                    className="field-input"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={gig.maxRequestsPerGuest}
+                    onChange={(e) =>
+                      setGig({ ...gig, maxRequestsPerGuest: Number(e.target.value) || 3 })
+                    }
+                    onBlur={() => saveLimits({ maxRequestsPerGuest: gig.maxRequestsPerGuest })}
+                  />
+                </label>
+              </div>
+              <label className="auto-advance-toggle">
+                <input
+                  type="checkbox"
+                  checked={publicWall}
+                  onChange={(e) => void saveSessionFeatures({ publicWall: e.target.checked })}
+                />
+                <span>Public request wall (crowd sees live requests)</span>
+              </label>
+              <label className="auto-advance-toggle">
+                <input
+                  type="checkbox"
+                  checked={allowShoutouts}
+                  onChange={(e) => void saveSessionFeatures({ allowShoutouts: e.target.checked })}
+                />
+                <span>Allow guest notes / shoutouts</span>
+              </label>
+              <label className="auto-advance-toggle">
+                <input
+                  type="checkbox"
+                  checked={requestAlerts}
+                  onChange={() => void toggleRequestAlerts()}
+                />
+                <span>Sound + notification on new requests</span>
+              </label>
+              <button type="button" className={`btn ghost ${pinWindow ? "active-pin" : ""}`} onClick={togglePinWindow}>
+                {pinWindow ? "Unpin window" : "Pin on top"}
+              </button>
+            </details>
+
+            <details className="setup-details">
+              <summary>Sync &amp; work mode</summary>
+              <div className="booth-mode-toggle" role="group" aria-label="Booth work mode">
+                {(["crowd", "booth"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`btn ghost booth-mode-btn ${boothWorkMode === mode ? "active" : ""}`}
+                    onClick={() => {
+                      setBoothWorkMode(mode);
+                      saveBoothWorkMode(mode);
+                    }}
+                  >
+                    {BOOTH_WORK_MODE_META[mode].label}
+                  </button>
+                ))}
+              </div>
+              <label className="sync-poll-label">
+                Request poll
+                <select
+                  className="sync-poll-select"
+                  value={syncPollPreset}
+                  onChange={(e) => {
+                    const next = e.target.value as SyncPollPreset;
+                    setSyncPollPreset(next);
+                    saveSyncPollPreset(next);
+                  }}
+                >
+                  {SYNC_POLL_PRESETS.map((p) => (
+                    <option key={p} value={p}>
+                      {syncPollPresetMeta(p).label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {shouldImportLocalLibrary(librarySource) && (
+                <button
+                  className="btn ghost"
+                  onClick={() => importLibrary("file")}
+                  disabled={busy}
+                >
+                  {djSoftware === "rekordbox" ? "Choose rekordbox.xml…" : "Choose Subcrates…"}
+                </button>
+              )}
+            </details>
+
+            <details className="setup-details">
+              <summary>Privacy &amp; crates</summary>
+              <PrivacyFiltersPanel
+                filters={privacyFilters}
+                onChange={updatePrivacyFilters}
+                privateCount={privateHidden}
+              />
+              {hiddenEntries.length > 0 && (
+                <button
+                  type="button"
+                  className="btn ghost btn-inspector"
+                  onClick={() => setInspectorOpen(true)}
+                >
+                  Hidden tracks ({hiddenEntries.length})
+                </button>
+              )}
+              {crateOptions.length > 0 && (
+                <CrateSelectionPanel
+                  softwareLabel={djSoftware === "rekordbox" ? "Rekordbox" : "Serato"}
+                  unitsLabel={djSoftware === "rekordbox" ? "playlists" : "crates"}
+                  options={crateOptions}
+                  selection={djSoftware === "rekordbox" ? rekordboxSelection : seratoSelection}
+                  onChange={djSoftware === "rekordbox" ? updateRekordboxSelection : updateSeratoSelection}
+                  onReimport={() => void importLibrary("auto")}
+                  busy={busy}
+                />
+              )}
+            </details>
+
+            {djSoftware === "rekordbox" && (
+              <details className="setup-details">
+                <summary>Rekordbox live tracking</summary>
+                <div className="prolink-status">
+                  <span className={`prolink-dot prolink-dot-${prolinkStatus}`} aria-hidden />
                   <span className="prolink-label">
                     {prolinkStatus === "connected"
                       ? "Pro DJ Link: connected"
@@ -1608,9 +1881,7 @@ export default function App() {
                           : "Pro DJ Link: idle"}
                   </span>
                 </div>
-                {prolinkDetail && (
-                  <p className="muted prolink-detail">{prolinkDetail}</p>
-                )}
+                {prolinkDetail && <p className="muted prolink-detail">{prolinkDetail}</p>}
                 <label className="auto-advance-toggle">
                   <input
                     type="checkbox"
@@ -1620,59 +1891,12 @@ export default function App() {
                       saveAutoAdvance(e.target.checked);
                     }}
                   />
-                  <span>
-                    Auto-advance queue by track length
-                    <small className="muted">
-                      Fallback when no CDJ/DDJ-1000 broadcasts. Auto-promotes the next
-                      queued song after the current one's duration elapses.
-                    </small>
-                  </span>
+                  <span>Auto-advance queue by track length</span>
                 </label>
-              </>
+              </details>
             )}
-            <h4 className="settings-section-label">Audience visibility</h4>
-            <PrivacyFiltersPanel
-              filters={privacyFilters}
-              onChange={updatePrivacyFilters}
-              privateCount={privateHidden}
-            />
-            {hiddenEntries.length > 0 && (
-              <button
-                type="button"
-                className="btn ghost btn-inspector"
-                onClick={() => setInspectorOpen(true)}
-              >
-                View hidden tracks ({hiddenEntries.length})
-              </button>
-            )}
-            {crateOptions.length > 0 && (
-              <CrateSelectionPanel
-                softwareLabel={djSoftware === "rekordbox" ? "Rekordbox" : "Serato"}
-                unitsLabel={djSoftware === "rekordbox" ? "playlists" : "crates"}
-                options={crateOptions}
-                selection={djSoftware === "rekordbox" ? rekordboxSelection : seratoSelection}
-                onChange={djSoftware === "rekordbox" ? updateRekordboxSelection : updateSeratoSelection}
-                onReimport={() => void importLibrary("auto")}
-                busy={busy}
-              />
-            )}
-            <button
-              className="btn ghost"
-              onClick={() => {
-                if (gig && online) {
-                  void endSession(gig.sessionId, gig.djToken).catch(() => {
-                    /* local clear still runs */
-                  });
-                }
-                setGig(null);
-                saveGig(null);
-                setRequests([]);
-                setQueue([]);
-                setNowPlaying(null);
-                setPlayedHistory([]);
-                setProHints([]);
-              }}
-            >
+
+            <button type="button" className="btn ghost setup-end-gig" onClick={endGigNow}>
               End gig
             </button>
           </>
@@ -1706,8 +1930,20 @@ export default function App() {
         {message && <p className="muted" style={{ marginTop: "0.75rem" }}>{message}</p>}
       </aside>
 
-      <main className="panel main-panel">
-        {!gig && <p className="empty">Start a gig to get your QR sticker and request queue.</p>}
+      <main className={dockMode ? "panel main-panel" : "command-main panel main-panel"}>
+        {!gig && !dockMode && (
+          <div className="command-empty-main">
+            <h1 className="command-empty-title">
+              Start your <span className="command-gradient-text">set.</span>
+            </h1>
+            <p className="command-empty-sub">
+              Open settings, sign in if you want a permanent QR, then tap Start gig.
+            </p>
+          </div>
+        )}
+        {!gig && dockMode && (
+          <p className="empty">Start a gig to get your QR sticker and request queue.</p>
+        )}
         {gig && (
           <QrSticker
             crowdUrl={gig.crowdUrl}
@@ -1717,26 +1953,68 @@ export default function App() {
             showLanHint={crowdUrlNeedsLanHint(gig.crowdUrl) && !phoneCrowdUrlIsLocalhost(phoneCrowdUrl)}
             localhostQrWarning={phoneCrowdUrlIsLocalhost(phoneCrowdUrl)}
             compact={dockMode}
+            variant={dockMode ? "default" : "command"}
             disabled={busy}
           />
         )}
       </main>
 
-      <aside className="panel right-stack">
-        <section className="right-pane work-pane">
+      <aside className={dockMode ? "panel right-stack" : "command-rail panel right-stack"}>
+        <section className={`right-pane work-pane ${!dockMode ? "command-rail-inner" : ""}`}>
           <div className="queue-block">
-            <NowPlayingBar
-              nowPlaying={nowPlaying}
-              seratoActive={Boolean(gig) && djSoftware === "serato"}
-              seratoLinkStatus={seratoLinkStatus}
-              prolinkStatus={prolinkStatus}
-              autoAdvanceActive={autoAdvanceActive}
-              djSoftware={djSoftware}
-            />
-            <div className="pane-header">
-              <h2 className="pane-heading">Queue</h2>
-              {gig && queue.length > 0 && <span className="queue-count">{queue.length}</span>}
-            </div>
+            {!dockMode ? (
+              <CommandNowPlaying
+                nowPlaying={nowPlaying}
+                seratoActive={Boolean(gig) && djSoftware === "serato"}
+                seratoLinkStatus={seratoLinkStatus}
+                prolinkStatus={prolinkStatus}
+                autoAdvanceActive={autoAdvanceActive}
+                djSoftware={djSoftware}
+              />
+            ) : (
+              <NowPlayingBar
+                nowPlaying={nowPlaying}
+                seratoActive={Boolean(gig) && djSoftware === "serato"}
+                seratoLinkStatus={seratoLinkStatus}
+                prolinkStatus={prolinkStatus}
+                autoAdvanceActive={autoAdvanceActive}
+                djSoftware={djSoftware}
+              />
+            )}
+            {gig && !dockMode && (
+              <MixSuggestionsPanel
+                sessionId={gig.sessionId}
+                djToken={gig.djToken}
+                nowPlaying={nowPlaying}
+                importIndex={importIndexRef.current}
+                trackCount={gig.trackCount}
+                onAddToCrate={(externalId, title, artist) =>
+                  void quickAddToCrate(externalId, title, artist)
+                }
+              />
+            )}
+            {!dockMode ? (
+              <div className="command-section-head">
+                <p className="command-section-kicker">
+                  // Queue · {queue.length} pending
+                </p>
+                {queue.length > 0 && (
+                  <button
+                    type="button"
+                    className="command-btn-ghost"
+                    style={{ padding: "0.2rem 0.4rem", fontSize: "0.56rem" }}
+                    onClick={() => setQueue([])}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="pane-header">
+                <h2 className="pane-heading">Queue</h2>
+                {gig && queue.length > 0 && <span className="queue-count">{queue.length}</span>}
+              </div>
+            )}
             <p className="pane-sub muted">Accepted tracks — drop off when you play them.</p>
             {tier === "pro" && proHints.length > 0 && (
               <div className="queue-suggestions">
@@ -1769,20 +2047,31 @@ export default function App() {
               <p className="pane-empty muted">Empty — accept a request below.</p>
             )}
             {queue.length > 0 && (
-              <ul className="dj-queue-list">
-                {queue.map((item) => (
-                  <li key={item.requestId} className="dj-queue-item">
-                    <div className="dj-queue-main">
+              <ul className={dockMode ? "dj-queue-list" : "command-queue-list dj-queue-list"}>
+                {queue.map((item, index) => (
+                  <li
+                    key={item.requestId}
+                    className={dockMode ? "dj-queue-item" : "command-queue-item dj-queue-item"}
+                  >
+                    {!dockMode && (
+                      <span className="command-queue-num">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                    )}
+                    <div className={dockMode ? "dj-queue-main" : "command-queue-body dj-queue-main"}>
                       <strong>{item.title}</strong>
-                      <span>{item.artist}</span>
-                      <TrackMeta bpm={item.bpm} musicalKey={item.key} />
+                      <span>
+                        {item.artist}
+                        {item.bpm ? ` · ${item.bpm} BPM` : ""}
+                      </span>
+                      {dockMode && <TrackMeta bpm={item.bpm} musicalKey={item.key} />}
                       {item.playedEarlierTonight && (
                         <span className="badge played-earlier">Played once already</span>
                       )}
                     </div>
                     <button
                       type="button"
-                      className="btn-top btn-quiet"
+                      className={dockMode ? "btn-top btn-quiet" : "command-queue-drop"}
                       onClick={() => markQueuePlaying(item)}
                       title={
                         djSoftware === "rekordbox"
@@ -1790,7 +2079,7 @@ export default function App() {
                           : "Remove if auto-detect missed"
                       }
                     >
-                      {djSoftware === "rekordbox" ? "Playing" : "✕"}
+                      {dockMode ? (djSoftware === "rekordbox" ? "Playing" : "✕") : "Drop"}
                     </button>
                   </li>
                 ))}
@@ -1799,12 +2088,22 @@ export default function App() {
           </div>
 
           <div className="requests-block">
-            <div className="pane-header">
-              <h2 className="pane-heading">Requests</h2>
-              {gig && pending.length > 0 && (
-                <span className={`queue-count ${requestPulse ? "pulse" : ""}`}>{pending.length}</span>
-              )}
-            </div>
+            {!dockMode ? (
+              <div className="command-section-head">
+                <p className="command-section-kicker command-section-kicker--requests">
+                  // Requests · {pending.length} pending
+                </p>
+              </div>
+            ) : (
+              <div className="pane-header">
+                <h2 className="pane-heading">Requests</h2>
+                {gig && pending.length > 0 && (
+                  <span className={`queue-count ${requestPulse ? "pulse" : ""}`}>
+                    {pending.length}
+                  </span>
+                )}
+              </div>
+            )}
             {gig && (
               <p className="pane-sub requests-hint muted">
                 Accept or Decline on screen — keep your headphones on; no crowd yelling needed.
@@ -1841,7 +2140,28 @@ export default function App() {
                   {r.source === "spotify" && " · Spotify"}
                   {r.inStock && " · In crate"}
                 </p>
+                {r.message && <p className="request-shoutout">&ldquo;{r.message}&rdquo;</p>}
                 <div className="actions">
+                  {(() => {
+                    let local: TrackRecord | undefined;
+                    if (r.matchedTrackId) local = importIndexRef.current.get(r.matchedTrackId);
+                    if (!local && r.externalId) local = importIndexRef.current.get(r.externalId);
+                    const lp = local?.localPath;
+                    return lp ? (
+                      <button
+                        type="button"
+                        className="drag-handle drag-handle-active"
+                        title="Drag onto Serato / Rekordbox deck"
+                        onMouseDown={(e) => {
+                          if (e.button !== 0) return;
+                          e.preventDefault();
+                          void startFileDrag(lp);
+                        }}
+                      >
+                        ⠿
+                      </button>
+                    ) : null;
+                  })()}
                   <button
                     type="button"
                     className="btn good"
@@ -1863,6 +2183,7 @@ export default function App() {
           </div>
         </section>
       </aside>
+      </div>
     </div>
   );
 }

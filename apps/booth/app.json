@@ -19,6 +19,9 @@
         "backgroundColor": "#000000"
       },
       "package": "app.q.booth"
-    }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
   }
 }

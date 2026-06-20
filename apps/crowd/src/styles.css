@@ -273,3 +273,117 @@ input {
 .offline-lead {
   margin-bottom: 0.75rem;
 }
+
+.share-booth {
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid #2a2a38;
+  background: linear-gradient(135deg, rgba(192, 132, 252, 0.08), rgba(56, 189, 248, 0.06));
+}
+
+.share-booth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.share-booth-copy {
+  min-width: 0;
+}
+
+.share-booth-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.share-booth-lead {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.share-booth-qr-toggle {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: none;
+  background: #fff;
+  color: #0a0a0f;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.share-booth-qr-toggle:hover {
+  transform: scale(1.04);
+}
+
+.share-booth-qr-toggle--open {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.45);
+}
+
+.share-booth-qr-panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  animation: share-booth-expand 0.2s ease;
+}
+
+@keyframes share-booth-expand {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.share-booth-qr-hint {
+  margin: 0 0 0.85rem;
+  color: #c4b5fd;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.share-booth-qr-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  padding: 1rem;
+  border-radius: 14px;
+  background: #fff;
+  margin-bottom: 0.85rem;
+}
+
+.share-booth-qr-code {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  color: #0a0a0f;
+}
+
+.share-booth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.share-booth-btn {
+  flex: 1;
+  min-width: 7rem;
+}
+
+.share-booth-error {
+  margin: 0.65rem 0 0;
+  color: #fca5a5;
+  font-size: 0.85rem;
+}

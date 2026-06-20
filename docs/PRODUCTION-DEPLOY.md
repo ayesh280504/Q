@@ -1,4 +1,4 @@
-# Production deploy — full checklist (Q v0.2.0)
+# Production deploy — full checklist (Q v0.2.1)
 
 One-page reference for shipping **API (Render)**, **web + crowd (Vercel)**, **desktop (GitHub Releases)**, and **Supabase redirects**.
 
@@ -11,15 +11,19 @@ Your current production URLs (from `.env.production`):
 | **Download** | https://q-web-liart.vercel.app/download |
 | **GitHub repo** | https://github.com/ayesh280504/Q |
 
-If you use a **separate Vercel project** for crowd (`apps/crowd`), set `Q_CROWD_URL` on Render to that URL instead of the web URL.
+If you use a **separate Vercel project** for crowd (`apps/crowd`), set `Q_CROWD_URL` on Render to that URL:
+
+| Service | URL |
+|---------|-----|
+| **Crowd (guest QR)** | https://q-crowd.vercel.app |
 
 ---
 
 ## Version (keep in sync)
 
-**Current release: `0.2.0`**
+**Current release: `0.2.1`**
 
-These files must all say `0.2.0` before you build the installer:
+These files must all say `0.2.1` before you build the installer:
 
 | File |
 |------|
@@ -83,7 +87,7 @@ Render should auto-deploy when `main` updates (if the service is linked to GitHu
 |----------|------------------|
 | `PORT` | `8787` (or Render’s assigned port) |
 | `SUPABASE_URL` | `https://jawyjjgwxksnfedpnxnr.supabase.co` |
-| `Q_CROWD_URL` | Crowd app URL — e.g. `https://q-web-liart.vercel.app` **or** your crowd-only Vercel URL |
+| `Q_CROWD_URL` | `https://q-crowd.vercel.app` (must match crowd Vercel project) |
 | `Q_WEB_URL` | `https://q-web-liart.vercel.app` |
 | `Q_DATA_DIR` | Persistent disk path if you use one, or default |
 | `Q_GITHUB_REPO` | `ayesh280504/Q` (desktop auto-updater) |
@@ -135,7 +139,7 @@ Expect **200 + JSON** when `v0.2.0` is published on GitHub; **204** if already o
 | `VITE_Q_INSTALLER_WINDOWS` | See below — set **after** GitHub Release |
 | `VITE_Q_INSTALLER_MAC` | (optional) Mac `.dmg` URL when you ship Mac |
 | `VITE_ENABLE_GOOGLE` | `true` when Google OAuth is configured |
-| `VITE_Q_CROWD_URL` | (optional) If crowd is on another domain — profile links |
+| `VITE_Q_CROWD_URL` | `https://q-crowd.vercel.app` (profile “request at gig” links) |
 
 **Download button (after GitHub Release):**
 
@@ -166,12 +170,13 @@ Second Vercel project (recommended) so guest QR traffic is separate from marketi
 | Variable | Value |
 |----------|--------|
 | `VITE_Q_API_URL` | `https://q-api-hp4b.onrender.com` |
+| `VITE_Q_WEB_URL` | `https://q-web-liart.vercel.app` (register / download links after the gig) |
 
 Crowd does **not** need Supabase or installer URLs.
 
-**Critical:** `Q_CROWD_URL` on **Render** must match this project’s URL, e.g.:
+**Critical:** `Q_CROWD_URL` on **Render** must match this project’s URL:
 
-- `https://your-crowd-project.vercel.app`
+- `https://q-crowd.vercel.app`
 
 QR codes and session links use that host: `https://YOUR-CROWD-URL/r/SESSIONCODE`.
 
@@ -239,7 +244,35 @@ Release notes text becomes the in-app “What’s new” banner ([RELEASING.md](
 
 ---
 
-## 7. Q Booth mobile (Expo) — not in store yet
+## 7. Q Crowd iOS app (guest) — **priority**
+
+Most iPhone guests need the **native app** for BLE nearby join (Safari has no Web Bluetooth).
+
+| Item | Value |
+|------|-------|
+| App | `apps/crowd-mobile` |
+| Bundle ID | `app.q.crowd` |
+| BLE | `react-native-ble-plx` (requires dev client, not Expo Go alone) |
+
+Production env (EAS secrets or `.env`):
+
+```env
+EXPO_PUBLIC_Q_CROWD_URL=https://q-crowd.vercel.app
+```
+
+Local/LAN: `npm run sync:env` writes `apps/crowd-mobile/.env`.
+
+```bash
+cd apps/crowd-mobile
+npx expo run:ios          # dev client on device/simulator
+eas build --platform ios  # TestFlight / App Store when ready
+```
+
+**Test with Mac DJ:** Mac desktop start gig → iPhone Q Crowd → Find booth nearby.
+
+---
+
+## 8. Q Booth mobile (Expo DJ HUD) — not in store yet
 
 Production API for dev builds / TestFlight later:
 
@@ -252,7 +285,7 @@ Run `npm run sync:env` locally only when using LAN IP; for production, set these
 
 ---
 
-## 8. Deploy order (summary)
+## 9. Deploy order (summary)
 
 ```mermaid
 flowchart LR
@@ -271,7 +304,7 @@ flowchart LR
 
 ---
 
-## 9. Post-deploy verification
+## 10. Post-deploy verification
 
 | Check | How |
 |-------|-----|
@@ -293,7 +326,10 @@ flowchart LR
 | `npm run dev:stack` | API + crowd + web (local) |
 | `npm run dev:desktop` | Tauri dev window |
 | `npm run dev:booth` | Expo mobile HUD |
+| `npm run dev:crowd-mobile` | Q Crowd guest app (iOS/Android BLE) |
 | `npm run sync:env` | LAN IP → `.env` + `apps/booth/.env` |
+| `npm run dev:check` | Local health check (API + crowd + web on localhost) |
+| `npm run check:prod` | Production health check (Render API + hosted crowd/web) |
 | `npm run build` | Shared libs + api + crowd + web |
 | `npm run build:desktop` | Vite build only (no installer) |
 | `npm run tauri:build -w @q/desktop` | Windows installer + `.sig` |
@@ -302,7 +338,7 @@ flowchart LR
 
 ## Related docs
 
-- [RELEASE-0.2.0.md](./RELEASE-0.2.0.md) — copy-paste commands for this release  
+- [PRD.md](./PRD.md) — product strategy, moat, platform priority  
 - [RELEASING.md](./RELEASING.md) — signing keys + updater troubleshooting  
 - [SUPABASE.md](./SUPABASE.md) — auth redirects  
 - [PRE-DEPLOY-CHECKLIST.md](./PRE-DEPLOY-CHECKLIST.md) — local testing before ship  

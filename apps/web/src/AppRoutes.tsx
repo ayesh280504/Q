@@ -14,6 +14,12 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import StudioPage from "./pages/StudioPage";
 import SettingsPage from "./pages/SettingsPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
+import FeaturesPage from "./pages/FeaturesPage";
+import ForDjsPage from "./pages/ForDjsPage";
+import ForCrowdPage from "./pages/ForCrowdPage";
+import AboutPage from "./pages/AboutPage";
+import IntegrationsPage from "./pages/IntegrationsPage";
 
 export default function AppRoutes() {
   const location = useLocation();
@@ -45,6 +51,12 @@ export default function AppRoutes() {
         <Route path="/studio" element={<StudioPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/for-djs" element={<ForDjsPage />} />
+        <Route path="/for-crowd" element={<ForCrowdPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
       </Routes>
     </>
   );

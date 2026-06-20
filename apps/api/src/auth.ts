@@ -45,6 +45,7 @@ export type UserRow = {
   created_at: string;
   supabase_id: string | null;
   social_links: string | null;
+  tip_url: string | null;
 };
 
 export function rowToProfile(row: UserRow): DjProfile {
@@ -57,6 +58,7 @@ export function rowToProfile(row: UserRow): DjProfile {
     socialLinks: parseSocialLinks(row.social_links),
     verified: row.verified === 1,
     createdAt: row.created_at,
+    tipUrl: row.tip_url?.trim() || undefined,
   };
 }
 

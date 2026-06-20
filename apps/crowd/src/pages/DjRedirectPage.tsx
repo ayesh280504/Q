@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import CrowdHero from "../components/CrowdHero";
+import PostGigCta from "../components/PostGigCta";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 
@@ -65,6 +66,11 @@ export default function DjRedirectPage() {
           reprint anything.
         </p>
       </CrowdHero>
+      <PostGigCta
+        variant="offline"
+        displayName={booth?.displayName ?? handle ?? "this DJ"}
+        handle={booth?.handle ?? handle}
+      />
     </div>
   );
 }

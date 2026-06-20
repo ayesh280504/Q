@@ -85,6 +85,7 @@ export function updateProfile(payload: {
   bio?: string;
   avatarUrl?: string;
   socialLinks?: import("@q/shared").DjSocialLinks;
+  tipUrl?: string;
 }) {
   return api<{ user: DjProfile }>("/auth/me", {
     method: "PATCH",
@@ -94,12 +95,30 @@ export function updateProfile(payload: {
 }
 
 export type FeedMix = Mix & {
-  dj: { handle: string; displayName: string; verified: boolean; avatarUrl?: string };
+  dj: {
+    handle: string;
+    displayName: string;
+    verified: boolean;
+    avatarUrl?: string;
+    gigRatings?: { averageScore: number; ratingCount: number };
+  };
   likeCount?: number;
   commentCount?: number;
   likedByMe?: boolean;
   savedByMe?: boolean;
 };
+
+export type TopRatedDj = {
+  handle: string;
+  displayName: string;
+  verified: boolean;
+  avatarUrl?: string;
+  gigRatings: { averageScore: number; ratingCount: number };
+};
+
+export function fetchTopRatedDjs(limit = 8) {
+  return api<{ djs: TopRatedDj[] }>(`/djs/top-rated?limit=${limit}`);
+}
 
 export function fetchFeed() {
   return api<{ mixes: FeedMix[] }>("/mixes/feed", { auth: true });

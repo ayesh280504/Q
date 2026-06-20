@@ -617,6 +617,22 @@ body {
   border-radius: 4px;
 }
 
+.overlay-shoutout,
+.request-shoutout {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: rgba(244, 114, 182, 0.95);
+}
+
+.overlay-shoutout {
+  display: block;
+  margin-top: 0.15rem;
+}
+
+.request-shoutout {
+  margin: 0.35rem 0 0;
+}
+
 .overlay-footer {
   font-family: var(--mkt-mono);
   font-size: 0.58rem;
@@ -670,3 +686,94 @@ body {
 .sticker-brand-logo {
   filter: var(--q-logo-glow-strong);
 }
+
+/* —— Compact setup sidebar (no scroll by default) —— */
+.setup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1rem !important;
+  min-height: 0;
+}
+
+.gig-summary-line {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+
+.gig-summary-meta {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+}
+
+.setup-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.setup-actions .btn {
+  margin-top: 0;
+  width: 100%;
+  padding: 0.55rem 0.5rem;
+}
+
+.setup-compact-label {
+  margin: 0.15rem 0 0;
+  gap: 0.25rem !important;
+}
+
+.setup-compact-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.library-profile-select {
+  margin-top: 0.15rem;
+}
+
+.setup-details {
+  border: 1px solid var(--booth-border);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  background: var(--booth-surface);
+}
+
+.setup-details summary {
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mkt-purple);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.setup-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.setup-details[open] summary {
+  margin-bottom: 0.45rem;
+}
+
+.setup-details .gig-setup.compact {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.setup-end-gig {
+  margin-top: 0.15rem;
+}
+
+.setup-panel .sync-hint {
+  display: none;
+}
+
+.setup-panel .library-profile-options {
+  display: none;
+}
+

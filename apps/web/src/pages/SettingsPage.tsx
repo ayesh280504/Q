@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const { loading, profileLoading, profile, refreshProfile, supabaseSession } = useAuth();
   const [bio, setBio] = useState("");
   const [social, setSocial] = useState<DjSocialLinks>({});
+  const [tipUrl, setTipUrl] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,6 +38,7 @@ export default function SettingsPage() {
     }
     setBio(profile.bio ?? "");
     setSocial(profile.socialLinks ?? {});
+    setTipUrl(profile.tipUrl ?? "");
   }, [loading, profileLoading, profile, supabaseSession, navigate]);
 
   async function onSubmit(e: FormEvent) {
@@ -45,7 +47,11 @@ export default function SettingsPage() {
     setSaved(false);
     setBusy(true);
     try {
-      await updateProfile({ bio: bio.trim() || undefined, socialLinks: social });
+      await updateProfile({
+        bio: bio.trim() || undefined,
+        socialLinks: social,
+        tipUrl: tipUrl.trim() || undefined,
+      });
       await refreshProfile();
       setSaved(true);
     } catch (err) {
@@ -107,6 +113,22 @@ export default function SettingsPage() {
                 />
               </label>
             ))}
+          </section>
+
+          <section className="settings-section card">
+            <h2>Tip link</h2>
+            <p className="muted small">
+              Stripe Payment Link, PayPal.me, Cash App, Venmo — shown to guests after your set
+              ends.
+            </p>
+            <label>
+              Tip URL
+              <input
+                value={tipUrl}
+                onChange={(e) => setTipUrl(e.target.value)}
+                placeholder="https://buy.stripe.com/… or https://paypal.me/you"
+              />
+            </label>
           </section>
 
           {saved && <p className="muted">Settings saved.</p>}

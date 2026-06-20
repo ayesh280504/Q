@@ -1,33 +1,49 @@
 import type { TransitionSuggestion } from "@q/shared";
+import { scoreMixability } from "@q/shared";
 import { buildProTransitionHints } from "./suggestions.js";
+import { db } from "./db.js";
 
-/** Pro tier: transition hints + AI co-pilot (LLM hooks in here). */
+/** Pro tier: transition hints + request-aware blend coaching. */
 export function buildProSuggestions(
   base: TransitionSuggestion[],
   sessionId: string,
   acceptedTrackId: string | null,
   requestTitle: string,
   requestArtist: string,
+  nowBpm?: number | null,
+  nowKey?: string | null,
 ): TransitionSuggestion[] {
+  const hints = buildProTransitionHints(sessionId, acceptedTrackId);
+
+  let blendDetail = `Ride into “${requestTitle}” over 16–32 bars — filter, tease vocal, full swap.`;
+  if (acceptedTrackId) {
+    const accepted = db
+      .prepare(`SELECT bpm, key FROM tracks WHERE id = ? AND session_id = ?`)
+      .get(acceptedTrackId, sessionId) as { bpm: number | null; key: string | null } | undefined;
+    if (accepted) {
+      const mix = scoreMixability({
+        fromBpm: nowBpm ?? undefined,
+        fromKey: nowKey ?? undefined,
+        toBpm: accepted.bpm,
+        toKey: accepted.key,
+      });
+      blendDetail = `${mix.label} (${mix.score}/100) — ${mix.detail}. Blend into “${requestTitle}”.`;
+    }
+  }
+
   return [
     ...base,
-    ...buildProTransitionHints(sessionId, acceptedTrackId),
+    ...hints,
     {
       type: "ai",
-      label: "Wordplay bridge",
-      detail: `Look for a lyrical or thematic link between your current track and “${requestTitle}” — crowd-pleasing without forcing the drop.`,
+      label: "Request blend",
+      detail: blendDetail,
       pro: true,
     },
     {
       type: "ai",
-      label: "Energy arc",
-      detail: `Ride into “${requestTitle}” by ${requestArtist} over 16–32 bars: filter → add hats → tease the vocal, then full swap.`,
-      pro: true,
-    },
-    {
-      type: "ai",
-      label: "Pro transitions",
-      detail: "Full AI transition map (harmonic paths, popular blends, wordplay) — connect your API key in a future Q Pro build.",
+      label: "Crowd moment",
+      detail: `Someone asked for “${requestTitle}” — acknowledge the room when you drop it for extra energy.`,
       pro: true,
     },
   ];

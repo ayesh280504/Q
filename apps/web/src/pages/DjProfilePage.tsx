@@ -12,9 +12,12 @@ import {
   unfollowDj,
 } from "../lib/accountApi";
 import type { DjProfilePublic } from "@q/shared";
+import { Q_PROD_URLS } from "@q/shared";
 import "../community.css";
 
-const CROWD_URL = import.meta.env.VITE_Q_CROWD_URL || "http://localhost:5173";
+const CROWD_URL =
+  import.meta.env.VITE_Q_CROWD_URL?.replace(/\/$/, "") ||
+  (import.meta.env.PROD ? Q_PROD_URLS.crowd : "http://localhost:5173");
 
 export default function DjProfilePage() {
   const { handle } = useParams<{ handle: string }>();
@@ -71,7 +74,27 @@ export default function DjProfilePage() {
                 {profile.verified && <span className="verified"> Verified</span>}
               </h1>
               {profile.bio && <p className="bio">{profile.bio}</p>}
+              {profile.gigRatings && profile.gigRatings.ratingCount > 0 && (
+                <p className="profile-gig-rating muted">
+                  Crowd rating{" "}
+                  <strong>
+                    {profile.gigRatings.averageScore.toFixed(1)}/5
+                  </strong>{" "}
+                  · {profile.gigRatings.ratingCount} set
+                  {profile.gigRatings.ratingCount !== 1 ? "s" : ""}
+                </p>
+              )}
               <DjSocialBar links={profile.socialLinks} />
+              {!isSelf && profile.tipUrl && (
+                <a
+                  className="btn primary profile-tip-btn"
+                  href={profile.tipUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Tip @{profile.handle} →
+                </a>
+              )}
               {isSelf && (
                 <>
                   <div className="permanent-qr-card">

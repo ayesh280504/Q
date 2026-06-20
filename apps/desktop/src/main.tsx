@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 import "@q/theme/booth-theme.css";
+import "@q/theme/command-center.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

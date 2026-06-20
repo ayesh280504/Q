@@ -42,7 +42,7 @@ export function useSeratoPlayback({
     const poll = async () => {
       try {
         const paths = await invoke<string[]>("list_serato_recent_sessions", {
-          limit: 3,
+          limit: 5,
         });
         if (stopped) return;
 
@@ -52,6 +52,7 @@ export function useSeratoPlayback({
         }
 
         let bestNow: NowPlaying | null = null;
+        let bestNowTs = -1;
         let bestHistory: PlayedTrack[] = [];
         let bestHistoryLen = 0;
 
@@ -72,7 +73,10 @@ export function useSeratoPlayback({
               playedAt: e.playedAt,
             }));
           }
-          if (path === paths[0] && now) {
+          // Newest session file can be empty while an older file has tonight's plays.
+          const nowTs = now?.playedAt ?? entries[entries.length - 1]?.playedAt ?? 0;
+          if (now && nowTs >= bestNowTs) {
+            bestNowTs = nowTs;
             bestNow = now;
           }
         }
@@ -84,6 +88,15 @@ export function useSeratoPlayback({
 
         onLinkStatusRef.current?.("ok");
         onHistoryRef.current(bestHistory);
+
+        if (!bestNow && bestHistory.length > 0) {
+          const last = bestHistory[bestHistory.length - 1]!;
+          bestNow = {
+            title: last.title,
+            artist: last.artist,
+            playedAt: last.playedAt,
+          };
+        }
 
         if (!bestNow) return;
 

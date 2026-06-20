@@ -1,4 +1,7 @@
 export * from "./sanitize.js";
+export * from "./harmonic.js";
+export * from "./urls.js";
+export * from "./ble.js";
 
 export type RequestStatus = "pending" | "accepted" | "declined";
 
@@ -115,6 +118,15 @@ export interface Session {
   maxPendingRequests?: number;
   /** Max track requests per crowd device per gig. */
   maxRequestsPerGuest?: number;
+  /** False after DJ ends the gig — crowd shows post-set conversion, not search. */
+  isLive?: boolean;
+  endedAt?: string;
+  /** DJ community handle when the session is linked to a signed-in account. */
+  djHandle?: string;
+  /** Crowd can see pending + accepted requests on a live wall (weddings, hype rooms). */
+  publicWall?: boolean;
+  /** Guests can attach a short note / shoutout to their request. */
+  allowShoutouts?: boolean;
 }
 
 export interface SessionSettings {
@@ -122,6 +134,20 @@ export interface SessionSettings {
   maxPendingRequests?: number;
   maxRequestsPerGuest?: number;
   librarySource?: LibrarySource;
+  publicWall?: boolean;
+  allowShoutouts?: boolean;
+}
+
+/** Public crowd wall entry — no guest ids, safe for display. */
+export interface PublicWallRequest {
+  id: string;
+  title: string;
+  artist: string;
+  message?: string;
+  status: RequestStatus;
+  createdAt: string;
+  bpm?: number;
+  key?: string;
 }
 
 export type PlanTier = "free" | "pro";
@@ -133,6 +159,20 @@ export interface TransitionSuggestion {
   label: string;
   detail: string;
   pro?: boolean;
+}
+
+/** Library track ranked for harmonic / tempo fit with now playing. */
+export interface MixSuggestionHit {
+  id: string;
+  title: string;
+  artist: string;
+  bpm?: number;
+  key?: string;
+  score: number;
+  matchLabel: string;
+  matchDetail: string;
+  /** Stable library id from import (matches desktop importIndex). */
+  externalId?: string;
 }
 
 export interface SyncStatus {
@@ -180,6 +220,8 @@ export interface DjProfile {
   socialLinks?: DjSocialLinks;
   verified: boolean;
   createdAt: string;
+  /** Stripe Payment Link, PayPal.me, Cash App, etc. — shown after gigs. */
+  tipUrl?: string;
 }
 
 export interface AuthResponse {
@@ -201,6 +243,13 @@ export interface Mix {
   updatedAt: string;
 }
 
+/** Aggregate crowd ratings after gigs (1–5), when the DJ has ended sessions. */
+export interface DjGigRatingStats {
+  averageScore: number;
+  ratingCount: number;
+}
+
 export interface DjProfilePublic extends DjProfile {
   mixes: Mix[];
+  gigRatings?: DjGigRatingStats;
 }

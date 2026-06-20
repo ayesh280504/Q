@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Q",
+    "slug": "q-crowd",
+    "version": "0.2.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "qcrowd",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.q.crowd",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Q uses Bluetooth to find DJ booths near you so you can request tracks without scanning a QR code.",
+        "NSBluetoothPeripheralUsageDescription": "Q uses Bluetooth to find nearby DJ booths."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#000000"
+      },
+      "package": "app.q.crowd",
+      "permissions": [
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "Q uses Bluetooth to find DJ booths near you."
+        }
+      ]
+    ]
+  }
+}

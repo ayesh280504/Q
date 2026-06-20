@@ -15,13 +15,36 @@ interface LibraryProfilePickerProps {
   onChange: (value: LibrarySource) => void;
   /** Show the heading + lead copy. Hide when embedded in a wider settings panel. */
   showHeading?: boolean;
+  /** Sidebar: compact dropdown instead of three large cards. */
+  variant?: "cards" | "compact";
 }
 
 export default function LibraryProfilePicker({
   value,
   onChange,
   showHeading = true,
+  variant = "cards",
 }: LibraryProfilePickerProps) {
+  if (variant === "compact") {
+    return (
+      <select
+        className="field-input library-profile-select"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value as LibrarySource)}
+        aria-label="Library profile"
+      >
+        <option value="" disabled>
+          Pick library profile…
+        </option>
+        {ORDER.map((opt) => (
+          <option key={opt} value={opt}>
+            {LIBRARY_SOURCE_LABELS[opt].title}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
   return (
     <div className="library-profile-picker">
       {showHeading && (

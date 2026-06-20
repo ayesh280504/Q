@@ -92,6 +92,16 @@ ensureColumn(
 );
 ensureColumn("sessions", "is_live", `ALTER TABLE sessions ADD COLUMN is_live INTEGER NOT NULL DEFAULT 1`);
 ensureColumn("sessions", "ended_at", `ALTER TABLE sessions ADD COLUMN ended_at TEXT`);
+ensureColumn(
+  "sessions",
+  "public_wall",
+  `ALTER TABLE sessions ADD COLUMN public_wall INTEGER NOT NULL DEFAULT 0`,
+);
+ensureColumn(
+  "sessions",
+  "allow_shoutouts",
+  `ALTER TABLE sessions ADD COLUMN allow_shoutouts INTEGER NOT NULL DEFAULT 1`,
+);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS session_live_status (
@@ -155,6 +165,7 @@ db.exec(`
 ensureColumn("sessions", "dj_user_id", `ALTER TABLE sessions ADD COLUMN dj_user_id TEXT`);
 ensureColumn("users", "supabase_id", `ALTER TABLE users ADD COLUMN supabase_id TEXT`);
 ensureColumn("users", "social_links", `ALTER TABLE users ADD COLUMN social_links TEXT`);
+ensureColumn("users", "tip_url", `ALTER TABLE users ADD COLUMN tip_url TEXT`);
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase ON users(supabase_id) WHERE supabase_id IS NOT NULL`);
 
 // Per-track "added to library" timestamp — preserved across re-syncs so the
@@ -173,5 +184,17 @@ db.exec(`
     PRIMARY KEY (dj_user_id, title_key, artist_key)
   );
   CREATE INDEX IF NOT EXISTS idx_dj_play_counts_dj ON dj_play_counts(dj_user_id);
+`);
+
+/** One score per guest per gig — collected after the set ends. */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS gig_ratings (
+    session_id TEXT NOT NULL,
+    guest_id TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, guest_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+  );
 `);
 

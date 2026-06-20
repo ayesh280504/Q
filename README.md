@@ -1,8 +1,10 @@
 # Q
 
-**Q** is a two-sided DJ request platform: the crowd requests tracks via QR on their own mobile data; the DJ runs a local-first command center on Mac/Windows with Rekordbox/Serato library sync, accept/decline control, and optional offline booth operation.
+**Q** is a two-sided DJ platform: the crowd requests tracks on their phones (LTE); the DJ runs a local-first command center on Mac/Windows with Serato/Rekordbox depth, Mix Coach, and optional offline operation.
 
-> This document is the **product requirements + technical diagnosis** for the repo. If chat history is lost after moving folders, start here.
+> **Product strategy & moat:** [docs/PRD.md](docs/PRD.md) · **Local test:** [docs/LOCAL-TEST.md](docs/LOCAL-TEST.md) · **Ship:** [docs/PRODUCTION-DEPLOY.md](docs/PRODUCTION-DEPLOY.md)
+
+> This README is the **technical hub** (monorepo, API, dev setup). If chat history is lost, start here + PRD.
 
 ### Where this project lives
 
@@ -18,8 +20,9 @@ Do **not** keep product code under `.cursor\projects\...\Temp-...` — that happ
 ## Table of contents
 
 1. [Vision & problem](#vision--problem)
-2. [Users & jobs to be done](#users--jobs-to-be-done)
-3. [Product requirements (PRD)](#product-requirements-prd)
+2. [Product summary (v0.2.1)](#product-summary-v021)
+3. [Users & jobs to be done](#users--jobs-to-be-done)
+4. [Product requirements (PRD)](#product-requirements-prd)
 4. [How it works (flows)](#how-it-works-flows)
 5. [Offline & sync model](#offline--sync-model)
 6. [Architecture](#architecture)
@@ -44,17 +47,32 @@ DJs at gigs get unstructured song requests (shouting, DMs, illegible notes). Ven
 
 | Side | Product | Role |
 |------|---------|------|
-| **Crowd** | Mobile web (`/r/:code`) | Search DJ library (or request manually), submit requests |
-| **DJ** | Desktop app (Tauri) | Import library, QR sticker, queue, accept/decline, sync |
-| **Cloud** | API | Sessions, library index (metadata only), request queue |
-| **Marketing** | Public website | Explain product, pricing, download |
+| **Crowd web** | Mobile web (`/r/:code`) | Search, request, rating — no install |
+| **Q Crowd app** | iOS / Android (Expo) | **BLE nearby join** + request WebView — App Store path |
+| **DJ** | Desktop app (Tauri) | Import library, QR, BLE beacon, queue, Mix Coach, drag-to-deck |
+| **Cloud** | API | Sessions, metadata index, requests, accounts, ratings |
+| **Marketing** | Public website | Explain, download, community, sign up |
 
 **Core principles**
 
 - **Music never leaves the laptop** — only track metadata (title, artist, BPM, key) syncs to cloud for search.
 - **DJ works offline at the booth** — accept/decline and library import work without internet; **Sync now** over phone hotspot when ready.
 - **Crowd uses their own data** — no venue Wi‑Fi required.
-- **No accounts for v1** — download app → start gig → get session QR. Accounts deferred until billing / permanent URLs.
+- **Accounts for community** — optional during the set; sign up after gig for follow/ratings/profile.
+- **BLE proximity (v0.2.1)** — Mac/Windows desktop beacons; **iOS Q Crowd app** scans to join.
+
+---
+
+## Product summary (v0.2.1)
+
+See **[docs/PRD.md](docs/PRD.md)** for moat vs NSR/Crate Hackers, full feature list, and success metrics.
+
+| Area | Highlights |
+|------|------------|
+| **Booth** | Command Center, Serato/RB import + now-playing, Mix Coach, drag-to-deck, offline sync |
+| **Crowd** | QR + share + ratings + tips link; **BLE `/nearby`**; **iOS/Android crowd app** |
+| **Community** | Profiles, mix feed, top-rated DJs, Supabase auth |
+| **Not building** | Merch, tickets, wedding form SaaS parity |
 
 ---
 
@@ -106,8 +124,9 @@ DJs at gigs get unstructured song requests (shouting, DMs, illegible notes). Ven
 | P0-9 | **Sync now** pulls requests + pushes decisions + library | ✅ |
 | P0-10 | **Request limits** (queue cap + per-guest cap) | ✅ |
 | P0-11 | QR shows **DJ display name** in center (Venmo-style) | ✅ |
-| P0-12 | **Downloadable** desktop app (installer) | ⚠️ Build exists (`tauri:build`); not shipped |
-| P0-13 | Deployed API + crowd so QR works off localhost | ❌ |
+| P0-12 | **Downloadable** desktop app (installer) | ⚠️ Build exists; ship via GitHub Release |
+| P0-13 | Deployed API + crowd (LTE QR) | ⚠️ Code ready; run `npm run check:prod` after deploy |
+| P0-14 | **BLE proximity** — desktop beacon + iOS crowd app | ⚠️ v0.2.1 (Mac beacon + `apps/crowd-mobile`; TestFlight TBD) |
 
 ### P1 — Polish & trust
 
@@ -117,15 +136,16 @@ DJs at gigs get unstructured song requests (shouting, DMs, illegible notes). Ven
 | P1-2 | Pin window **always on top** (Tauri) | ✅ |
 | P1-3 | Compact / side-dock DJ layout | ❌ |
 | P1-4 | Block or restrict “request anyway” (out-of-stock) | ❌ (allowed today) |
-| P1-5 | Real download links on marketing site | ❌ |
+| P1-5 | Real download links on marketing site | ⚠️ Set `VITE_Q_INSTALLER_WINDOWS` on Vercel |
 | P1-6 | Auto-sync interval tuning / backoff | ⚠️ (4s poll when online) |
+| P1-7 | **Q Crowd iOS App Store** | ⚠️ `apps/crowd-mobile` — EAS build + review |
 
 ### P2 — Growth & monetization
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| P2-1 | DJ **accounts** + permanent QR (`/@handle`) | ❌ |
-| P2-2 | **Q Pro** — AI transition suggestions | ⚠️ Stub only |
+| P2-1 | DJ **accounts** + permanent QR (`/dj/:handle`) | ✅ |
+| P2-2 | **Q Pro** — AI transition / Mix Coach+ | ⚠️ Enhanced suggestions; paid tier TBD |
 | P2-3 | **Traktor** library adapter | ❌ |
 | P2-4 | Payments / subscription | ❌ |
 
@@ -229,12 +249,11 @@ Crowd (LTE)  ──always online to API──►  Cloud API  ◄──sync when 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Auth model (v1)
+### Auth model (v0.2.1)
 
-- **No user accounts.**
-- Each session has a secret **`djToken`** (Bearer) for DJ-only endpoints.
-- Crowd uses public **session code** in URL only.
-- Guest identity = anonymous `X-Q-Guest-Id` (UUID in `localStorage`) for rate limits.
+- **Crowd during set:** anonymous `X-Q-Guest-Id` — no login required.
+- **DJ booth:** session **`djToken`** (Bearer) per gig; optional Supabase account when starting gig.
+- **Community:** Supabase email/password (+ optional Google); `X-Q-Account-Token` legacy path.
 
 ### Data store
 
@@ -249,7 +268,9 @@ Crowd (LTE)  ──always online to API──►  Cloud API  ◄──sync when 
 | Path | Package | Purpose |
 |------|---------|---------|
 | `apps/web` | `@q/web` | DJ marketing site, hero scroll animation |
-| `apps/crowd` | `@q/crowd` | Crowd request portal `/r/:code` |
+| `apps/crowd` | `@q/crowd` | Crowd request portal `/r/:code` (web) |
+| `apps/crowd-mobile` | `@q/crowd-mobile` | Guest iOS/Android app — BLE scan + requests |
+| `apps/booth` | `@q/booth` | DJ mobile HUD (Expo) |
 | `apps/api` | `@q/api` | REST API, sessions, library, requests |
 | `apps/desktop` | `@q/desktop` | Tauri DJ command center |
 | `packages/shared` | `@q/shared` | Shared TypeScript types |
@@ -319,6 +340,8 @@ Base URL: `http://localhost:8787` (dev)
 - Pin window on top (Tauri only)
 - **Community v1:** accounts, mix feed, DJ profiles, studio (link mixes)
 - Serato now-playing + queue auto-clear + played-earlier badges
+- Command Center, Mix Coach, drag-to-deck, BLE beacon (Win + Mac)
+- Post-gig ratings, tips URL, public wall, crowd iOS app scaffold
 
 ### ⚠️ Partial / dev-only
 
@@ -373,17 +396,22 @@ npm run build -w @q/serato
 
 ### Phone + LAN (crowd + Q Booth mobile)
 
-1. In `.env`, set `Q_CROWD_URL=http://<your-lan-ip>:5173` (Windows: `ipconfig` → IPv4).  
-2. Run `npm run sync:env` — updates `VITE_Q_CROWD_LAN_URL`, `EXPO_PUBLIC_*`, and `apps/booth/.env`.  
-3. `npm run dev:stack` — API listens on `0.0.0.0:8787`; crowd on `:5173` with `host: true`.  
-4. Phone on same Wi‑Fi: open crowd URL from desktop QR, or Expo **Q Booth** (`npm run dev:booth`).  
-5. Crowd on phone uses `/api` proxy automatically (no `localhost` on the device).
+1. Leave `Q_CROWD_URL=http://localhost:5173` in `.env` — `npm run sync:env` **auto-detects your LAN IP** on Windows/macOS/Linux.  
+2. Or set `Q_CROWD_URL=http://<your-lan-ip>:5173` manually (`ipconfig` → IPv4).  
+3. Run `npm run sync:env` — updates `VITE_Q_CROWD_LAN_URL`, `EXPO_PUBLIC_*`, and `apps/booth/.env`.  
+4. `npm run dev:stack` — API listens on `0.0.0.0:8787`; crowd on `:5173` with `host: true`.  
+5. `npm run dev:check` — confirms API, crowd, and web are up.  
+6. Phone on same Wi‑Fi: open crowd URL from desktop QR, or Expo **Q Booth** (`npm run dev:booth`).  
+7. Crowd on phone uses `/api` proxy automatically (no `localhost` on the device).
+
+**Full walkthrough:** [docs/LOCAL-TEST.md](docs/LOCAL-TEST.md)
 
 | App | Command | Phone URL |
 |-----|---------|-----------|
-| Crowd (guests) | `npm run dev:stack` | `http://<lan-ip>:5173/r/CODE` |
+| Crowd (guests, web) | `npm run dev:stack` | `http://<lan-ip>:5173/r/CODE` |
+| **Q Crowd (guest iOS/Android)** | `npm run dev:crowd-mobile` | Dev client — see [apps/crowd-mobile/README.md](apps/crowd-mobile/README.md) |
 | Q Booth (DJ HUD) | `npm run dev:booth` | Expo Go → scan terminal QR |
-| Desktop | `npm run dev:desktop` | Laptop only; pushes BPM/key to API |
+| Desktop | `npm run dev:desktop` | Laptop only; BLE beacon + sync to API |
 
 All three surfaces share `@q/theme` tokens (black, Inter, pink/cyan/purple, white CTAs).
 
@@ -450,7 +478,7 @@ npm run hero:frames
 | TV / tablet at bar | Medium | Optional if venue has a screen |
 | Mailed sticker packs | Zero print | Later — after permanent `/@handle` URLs |
 
-**Production:** deploy crowd app so QR uses a real HTTPS URL (LTE). See `Q_CROWD_URL` in `.env`.
+**Production:** deploy crowd app so QR uses a real HTTPS URL (LTE, any network). Render `Q_CROWD_URL` → `https://q-crowd.vercel.app`. Run `npm run check:prod` to verify hosted stack. See `docs/PRODUCTION-DEPLOY.md`.
 
 **Permanent link (signed-in DJs):** crowd can open `/dj/yourhandle` → redirects to tonight's session code.
 
@@ -462,12 +490,11 @@ Full community / marketplace PRD: [docs/COMMUNITY.md](docs/COMMUNITY.md).
 
 Recommended order if unsure what to build next:
 
-1. **Prove the loop** — run checklist above; fix whatever breaks  
-2. **Ship desktop installer** — `tauri:build`, test on clean machine  
-3. **Deploy** — API + crowd (+ web) so QR works on real URLs  
-4. **Marketing download** — host installers, update `apps/web` CTA  
-5. **Community** — register, add mixes in Studio, share profile link  
-6. **Q Pro** — AI transitions when ready to charge  
+1. **Prove the loop** — [LOCAL-TEST.md](docs/LOCAL-TEST.md) + iOS BLE scan  
+2. **Deploy** — API + crowd + web; `npm run check:prod`  
+3. **Ship desktop** — `tauri:build`, GitHub Release  
+4. **TestFlight crowd app** — `apps/crowd-mobile`, bundle `app.q.crowd`  
+5. **Q Pro** — when ready to charge  
 
 ---
 

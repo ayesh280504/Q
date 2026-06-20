@@ -1,0 +1,22 @@
+/**
+ * Native OS file drag — drop tracks onto Serato / Rekordbox decks.
+ * No Serato API required; uses the same mechanism as Banger Button.
+ */
+
+function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export async function startFileDrag(localPath: string): Promise<void> {
+  const path = localPath.trim();
+  if (!path) throw new Error("No local file path for this track.");
+  if (!isTauri()) {
+    throw new Error("Drag-to-deck works in the installed Q booth app.");
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("start_file_drag", { path });
+}
+
+export function canDragToDeck(localPath?: string | null): boolean {
+  return Boolean(localPath?.trim()) && isTauri();
+}

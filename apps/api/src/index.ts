@@ -32,6 +32,7 @@ function loadRootEnv(): void {
 
 loadRootEnv();
 import { buildProSuggestions } from "./ai-suggestions.js";
+import { buildMixSuggestions } from "./mix-suggestions.js";
 import { buildSuggestions } from "./suggestions.js";
 import {
   getDjCurrentlyPlaying,
@@ -205,6 +206,11 @@ type SessionRow = {
   max_requests_per_guest?: number | null;
   streaming_search?: number | null;
   library_source?: string | null;
+  is_live?: number | null;
+  ended_at?: string | null;
+  dj_user_id?: string | null;
+  public_wall?: number | null;
+  allow_shoutouts?: number | null;
 };
 
 type LibrarySourceValue = "local" | "spotify" | "both";
@@ -254,6 +260,18 @@ function sessionUsesStreamingSearch(row: SessionRow): boolean {
   return isSpotifyConfigured() && (row.streaming_search ?? 1) !== 0;
 }
 
+function djHandleForUser(djUserId: string | null | undefined): string | undefined {
+  if (!djUserId) return undefined;
+  const user = db
+    .prepare(`SELECT handle FROM users WHERE id = ?`)
+    .get(djUserId) as { handle: string } | undefined;
+  return user?.handle;
+}
+
+function sessionIsLive(row: SessionRow): boolean {
+  return (row.is_live ?? 1) !== 0;
+}
+
 function rowToSession(row: SessionRow): Session {
   return {
     id: row.id,
@@ -266,6 +284,11 @@ function rowToSession(row: SessionRow): Session {
     maxRequestsPerGuest: row.max_requests_per_guest ?? 3,
     streamingSearch: sessionUsesStreamingSearch(row),
     librarySource: parseLibrarySource(row.library_source),
+    isLive: sessionIsLive(row),
+    endedAt: row.ended_at ?? undefined,
+    djHandle: djHandleForUser(row.dj_user_id),
+    publicWall: (row.public_wall ?? 0) !== 0,
+    allowShoutouts: (row.allow_shoutouts ?? 1) !== 0,
   };
 }
 
@@ -421,6 +444,8 @@ app.post("/sessions", async (c) => {
     maxPendingRequests?: number;
     maxRequestsPerGuest?: number;
     librarySource?: unknown;
+    publicWall?: boolean;
+    allowShoutouts?: boolean;
   };
   const sessionId = id();
   const code = sessionCode();
@@ -434,6 +459,8 @@ app.post("/sessions", async (c) => {
   // Local-only DJs explicitly want their crowd to ONLY see tracks the booth
   // has on disk — we honour that even if Spotify is configured server-side.
   const streamingSearch = streamingFlagFor(librarySource);
+  const publicWall = body.publicWall ? 1 : 0;
+  const allowShoutouts = body.allowShoutouts === false ? 0 : 1;
 
   const accountUser = await resolveAccount(c);
   const djUserId = accountUser?.id ?? null;
@@ -442,8 +469,8 @@ app.post("/sessions", async (c) => {
   }
 
   db.prepare(
-    `INSERT INTO sessions (id, code, name, display_name, dj_token, created_at, max_pending_requests, max_requests_per_guest, dj_user_id, streaming_search, library_source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sessions (id, code, name, display_name, dj_token, created_at, max_pending_requests, max_requests_per_guest, dj_user_id, streaming_search, library_source, public_wall, allow_shoutouts)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     sessionId,
     code,
@@ -456,6 +483,8 @@ app.post("/sessions", async (c) => {
     djUserId,
     streamingSearch,
     librarySource ?? null,
+    publicWall,
+    allowShoutouts,
   );
 
   const response: CreateSessionResponse = {
@@ -469,6 +498,8 @@ app.post("/sessions", async (c) => {
       maxRequestsPerGuest: maxPerGuest,
       streamingSearch: streamingSearch !== 0 && isSpotifyConfigured(),
       librarySource,
+      publicWall: publicWall !== 0,
+      allowShoutouts: allowShoutouts !== 0,
     },
     djToken,
     crowdUrl: `${crowdBaseUrl}/r/${code}`,
@@ -512,10 +543,27 @@ app.patch("/sessions/:sessionId/settings", async (c) => {
     body.librarySource !== undefined
       ? streamingFlagFor(nextLibrarySource ?? undefined)
       : (row.streaming_search ?? 1);
+  const publicWall =
+    body.publicWall !== undefined ? (body.publicWall ? 1 : 0) : (row.public_wall ?? 0);
+  const allowShoutouts =
+    body.allowShoutouts !== undefined
+      ? body.allowShoutouts
+        ? 1
+        : 0
+      : (row.allow_shoutouts ?? 1);
 
   db.prepare(
-    `UPDATE sessions SET display_name = ?, max_pending_requests = ?, max_requests_per_guest = ?, library_source = ?, streaming_search = ? WHERE id = ?`,
-  ).run(displayName, maxPending, maxPerGuest, nextLibrarySource, streamingSearch, sessionId);
+    `UPDATE sessions SET display_name = ?, max_pending_requests = ?, max_requests_per_guest = ?, library_source = ?, streaming_search = ?, public_wall = ?, allow_shoutouts = ? WHERE id = ?`,
+  ).run(
+    displayName,
+    maxPending,
+    maxPerGuest,
+    nextLibrarySource,
+    streamingSearch,
+    publicWall,
+    allowShoutouts,
+    sessionId,
+  );
 
   const updated = db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(sessionId) as SessionRow;
   return c.json({ session: rowToSession(updated) });
@@ -529,6 +577,102 @@ app.get("/sessions/:code", (c) => {
 
   if (!row) return c.json({ error: "Session not found" }, 404);
   return c.json({ session: rowToSession(row) });
+});
+
+/** Lightweight poll for crowd tabs — detects end gig without full session payload. */
+app.get("/sessions/:code/status", (c) => {
+  const code = c.req.param("code").trim().toUpperCase();
+  const row = db
+    .prepare(`SELECT code, is_live, ended_at FROM sessions WHERE code = ?`)
+    .get(code) as { code: string; is_live: number | null; ended_at: string | null } | undefined;
+  if (!row) return c.json({ error: "Session not found" }, 404);
+  return c.json({
+    code: row.code,
+    isLive: (row.is_live ?? 1) !== 0,
+    endedAt: row.ended_at ?? undefined,
+  });
+});
+
+/** Live request wall for the crowd — pending + accepted, no guest ids. */
+app.get("/sessions/:code/wall", (c) => {
+  const code = c.req.param("code").trim().toUpperCase();
+  const session = db
+    .prepare(`SELECT id, public_wall, is_live FROM sessions WHERE code = ?`)
+    .get(code) as
+    | { id: string; public_wall: number | null; is_live: number | null }
+    | undefined;
+  if (!session) return c.json({ error: "Session not found" }, 404);
+  if ((session.public_wall ?? 0) === 0) {
+    return c.json({ enabled: false, requests: [] });
+  }
+  if ((session.is_live ?? 1) === 0) {
+    return c.json({ enabled: false, requests: [] });
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT id, title, artist, message, status, created_at, bpm, key
+       FROM requests
+       WHERE session_id = ? AND status IN ('pending', 'accepted')
+       ORDER BY created_at DESC
+       LIMIT 40`,
+    )
+    .all(session.id) as Array<{
+      id: string;
+      title: string;
+      artist: string;
+      message: string | null;
+      status: string;
+      created_at: string;
+      bpm: number | null;
+      key: string | null;
+    }>;
+
+  return c.json({
+    enabled: true,
+    requests: rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      artist: r.artist,
+      message: r.message?.trim() || undefined,
+      status: r.status,
+      createdAt: r.created_at,
+      bpm: r.bpm ?? undefined,
+      key: r.key ?? undefined,
+    })),
+  });
+});
+
+/** Post-gig rating from crowd (one per guest per session). */
+app.post("/sessions/:code/rating", async (c) => {
+  const code = c.req.param("code").trim().toUpperCase();
+  const row = db
+    .prepare(`SELECT id, is_live FROM sessions WHERE code = ?`)
+    .get(code) as { id: string; is_live: number | null } | undefined;
+  if (!row) return c.json({ error: "Session not found" }, 404);
+  if ((row.is_live ?? 1) !== 0) {
+    return c.json({ error: "Rate the set after it ends.", code: "gig_live" }, 403);
+  }
+
+  const guestId = c.req.header("X-Q-Guest-Id")?.trim().slice(0, 64);
+  if (!guestId) {
+    return c.json({ error: "Missing guest id — refresh and try again." }, 400);
+  }
+
+  const body = (await c.req.json()) as { score?: number };
+  const score = Math.round(Number(body.score));
+  if (!Number.isFinite(score) || score < 1 || score > 5) {
+    return c.json({ error: "Score must be 1–5" }, 400);
+  }
+
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO gig_ratings (session_id, guest_id, score, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(session_id, guest_id) DO UPDATE SET score = excluded.score, created_at = excluded.created_at`,
+  ).run(row.id, guestId, score, now);
+
+  return c.json({ ok: true, score });
 });
 
 app.post("/sessions/:sessionId/library", async (c) => {
@@ -742,12 +886,31 @@ app.get("/sessions/:code/tracks/search", async (c) => {
     }
   }
 
-  if (!streaming && hits.length === 0) {
+  if (hits.length === 0) {
+    const localCount = (
+      db.prepare(`SELECT COUNT(*) as n FROM tracks WHERE session_id = ?`).get(session.id) as {
+        n: number;
+      }
+    ).n;
+    if (!streaming) {
+      return c.json({
+        results: [],
+        mode: "library" as const,
+        streamingSearch: false,
+        hint:
+          localCount === 0
+            ? "The DJ hasn't synced their library yet. In Q on the laptop: Auto-import Serato/Rekordbox, then Sync now."
+            : "No matches in the DJ's library for that search — try different words or request manually below.",
+      });
+    }
     return c.json({
       results: [],
-      mode: "library" as const,
-      streamingSearch: false,
-      hint: "Sync your library in the booth app, or configure Spotify API keys on the server.",
+      mode: "spotify" as const,
+      streamingSearch: true,
+      hint:
+        localCount === 0
+          ? "No Spotify matches. Try different words, or ask the DJ to sync their crate (Auto-import + Sync in Q)."
+          : "No Spotify matches for that search — try different words.",
     });
   }
 
@@ -867,6 +1030,57 @@ app.get("/sessions/:sessionId/live-status", (c) => {
   });
 });
 
+/** Harmonic / tempo-ranked next tracks from synced library (Mix Coach). */
+app.get("/sessions/:sessionId/mix-suggestions", (c) => {
+  const sessionId = c.req.param("sessionId");
+  if (!requireDj(c, sessionId)) return c.json({ error: "Unauthorized" }, 401);
+
+  const useLive = c.req.query("fromLive") === "1";
+  let bpm: number | undefined;
+  let key: string | undefined;
+  let title: string | undefined;
+  let artist: string | undefined;
+
+  const qBpm = c.req.query("bpm");
+  if (qBpm) {
+    const n = Number(qBpm);
+    if (Number.isFinite(n)) bpm = n;
+  }
+  key = c.req.query("key")?.trim() || undefined;
+  title = c.req.query("title")?.trim() || undefined;
+  artist = c.req.query("artist")?.trim() || undefined;
+
+  if (useLive) {
+    const live = db
+      .prepare(
+        `SELECT title, artist, bpm, key FROM session_live_status WHERE session_id = ?`,
+      )
+      .get(sessionId) as
+      | { title: string; artist: string; bpm: number | null; key: string | null }
+      | undefined;
+    if (live) {
+      title = live.title;
+      artist = live.artist;
+      if (live.bpm != null) bpm = live.bpm;
+      if (live.key) key = live.key;
+    }
+  }
+
+  const suggestions = buildMixSuggestions(sessionId, {
+    bpm,
+    key,
+    title,
+    artist,
+    excludePlayedTonight: c.req.query("excludePlayed") !== "0",
+    limit: Number(c.req.query("limit") ?? 12),
+  });
+
+  return c.json({
+    from: { title, artist, bpm, key },
+    suggestions,
+  });
+});
+
 /** Marks session not live — unlocks permanent QR offline state. */
 app.post("/sessions/:sessionId/end", async (c) => {
   const sessionId = c.req.param("sessionId");
@@ -883,6 +1097,12 @@ app.post("/sessions/:code/requests", async (c) => {
     .prepare(`SELECT * FROM sessions WHERE code = ?`)
     .get(code) as SessionRow | undefined;
   if (!session) return c.json({ error: "Session not found" }, 404);
+  if (!sessionIsLive(session)) {
+    return c.json(
+      { error: "This set is over — requests are closed.", code: "gig_ended" },
+      403,
+    );
+  }
 
   const guestId = c.req.header("X-Q-Guest-Id")?.trim().slice(0, 64);
   if (!guestId) {
@@ -932,6 +1152,13 @@ app.post("/sessions/:code/requests", async (c) => {
   const title = body.title?.trim();
   const artist = body.artist?.trim() || "Unknown Artist";
   if (!title) return c.json({ error: "Title required" }, 400);
+
+  const shoutoutsOk = (session.allow_shoutouts ?? 1) !== 0;
+  let guestMessage = body.message?.trim() || null;
+  if (guestMessage && !shoutoutsOk) guestMessage = null;
+  if (guestMessage && guestMessage.length > 200) {
+    guestMessage = guestMessage.slice(0, 200);
+  }
 
   let inStock = false;
   let matchedTrackId: string | null = null;
@@ -995,7 +1222,7 @@ app.post("/sessions/:code/requests", async (c) => {
     session.id,
     title,
     artist,
-    body.message?.trim() || null,
+    guestMessage,
     inStock ? 1 : 0,
     matchedTrackId,
     now,
@@ -1013,7 +1240,7 @@ app.post("/sessions/:code/requests", async (c) => {
     session_id: session.id,
     title,
     artist,
-    message: body.message?.trim() || null,
+    message: guestMessage,
     in_stock: inStock ? 1 : 0,
     matched_track_id: matchedTrackId,
     status: "pending",
@@ -1145,8 +1372,19 @@ app.patch("/sessions/:sessionId/requests/:requestId", async (c) => {
       row.title,
       row.artist,
     );
+    const live = db
+      .prepare(`SELECT bpm, key FROM session_live_status WHERE session_id = ?`)
+      .get(sessionId) as { bpm: number | null; key: string | null } | undefined;
     suggestions = getPlan(c) === "pro"
-      ? buildProSuggestions(base, sessionId, row.matched_track_id, row.title, row.artist)
+      ? buildProSuggestions(
+          base,
+          sessionId,
+          row.matched_track_id,
+          row.title,
+          row.artist,
+          live?.bpm,
+          live?.key,
+        )
       : base;
   }
 

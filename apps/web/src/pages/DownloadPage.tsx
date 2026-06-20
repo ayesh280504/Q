@@ -4,24 +4,40 @@ import BoothGigModal from "../components/BoothGigModal";
 import BoothLayout from "../components/BoothLayout";
 import LaunchAppButton from "../components/LaunchAppButton";
 import { getInstallerUrls } from "../lib/downloadUrls";
+import { CHANGELOG_021 } from "../lib/marketingContent";
 
-const BOOTH_VERSION = "0.2.0";
+const BOOTH_VERSION = "0.2.1";
 
 const FEATURES = [
   {
     n: "01",
-    title: "Local engine",
-    desc: "Reads Rekordbox, Serato, and your local files directly. No upload step.",
+    title: "Command Center",
+    desc: "QR center, queue rail, Serato/Rekordbox now playing — one screen for the whole set.",
   },
   {
     n: "02",
-    title: "QR portal",
-    desc: "Print a sticker. Crowd scans on LTE — no venue Wi-Fi, no app install.",
+    title: "Library truth",
+    desc: "Serato crates + rekordbox.xml + Spotify/Both crowd search. Privacy filters for VIP edits.",
   },
   {
     n: "03",
-    title: "Booth-grade UI",
-    desc: "Dark glass, big tap targets, readable in any lighting. Built for the floor.",
+    title: "Crowd portal",
+    desc: "Guests scan on LTE. Search, optional shoutout, accept/decline toasts, share with friends.",
+  },
+  {
+    n: "04",
+    title: "Overlay dock",
+    desc: "Pin-on-top mini queue beside your DJ software. Sound + notification on new requests.",
+  },
+  {
+    n: "05",
+    title: "End gig + follow",
+    desc: "Kill requests for everyone. Crowd rates the set and follows your community profile.",
+  },
+  {
+    n: "06",
+    title: "Offline sync",
+    desc: "Accept offline, sync on hotspot. Auto Q Requests crate for Serato/Rekordbox.",
   },
 ] as const;
 
@@ -162,7 +178,7 @@ export default function DownloadPage() {
                 className="booth-btn-outline"
               />
             </div>
-            <a href="#download-platforms" className="booth-link-muted">
+            <a href="#changelog" className="booth-link-muted">
               See what&apos;s new in {BOOTH_VERSION} →
             </a>
           </article>
@@ -186,6 +202,24 @@ export default function DownloadPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="booth-section" id="changelog">
+        <p className="booth-kicker booth-kicker--purple">
+          <span className="booth-kicker-dot" aria-hidden />
+          Changelog
+        </p>
+        <h2 className="booth-section-title">What&apos;s new in {BOOTH_VERSION}</h2>
+        <ul className="mkt-changelog">
+          {CHANGELOG_021.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+        <p className="booth-lead">
+          <Link to="/features" className="booth-link-muted">Explore all features →</Link>
+          {" · "}
+          <Link to="/for-djs" className="booth-link-muted">DJ workflow guide →</Link>
+        </p>
       </section>
 
       <section className="booth-section">

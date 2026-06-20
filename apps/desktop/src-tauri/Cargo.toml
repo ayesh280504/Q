@@ -1,6 +1,6 @@
 [package]
 name = "q-desktop"
-version = "0.2.0"
+version = "0.2.1"
 description = "Q DJ Command Center"
 authors = ["Q"]
 edition = "2021"
@@ -22,6 +22,15 @@ tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+drag = "2.1"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "Devices_Bluetooth_Advertisement",
+  "Storage_Streams",
+  "Foundation",
+  "Foundation_Collections",
+] }
 
 [profile.release]
 panic = "abort"

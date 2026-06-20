@@ -18,6 +18,7 @@ import DeclineSheet from "../components/DeclineSheet";
 import NowPlayingHeader from "../components/NowPlayingHeader";
 import QLogo from "../components/QLogo";
 import SuggestionsStrip from "../components/SuggestionsStrip";
+import MixCoachStrip from "../components/MixCoachStrip";
 import SwipeRequestCard from "../components/SwipeRequestCard";
 import type { BoothGig } from "../storage";
 import { colors, fonts, spacing, type } from "../theme";
@@ -97,6 +98,7 @@ export default function LiveScreen({
         )}
       </View>
       <NowPlayingHeader live={live} pendingCount={pendingCount} gigCode={gig.code} />
+      <MixCoachStrip sessionId={gig.sessionId} djToken={gig.djToken} live={live} />
       <SuggestionsStrip suggestions={suggestions} />
       <View style={styles.listHeader}>
         <Text style={styles.section}>Requests</Text>

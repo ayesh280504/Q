@@ -4,6 +4,7 @@ import AppShell from "../components/AppShell";
 import QLogo from "../components/QLogo";
 import { ensureQProfile } from "../lib/ensureQProfile";
 import { consumeReturnToDesktop } from "../lib/returnToDesktop";
+import { consumePendingFollow } from "../lib/pendingFollow";
 import { supabase } from "../lib/supabase";
 
 /** OAuth or email confirmation link return. */
@@ -27,6 +28,14 @@ export default function AuthCallbackPage() {
       if (result.ok) {
         done = true;
         if (await consumeReturnToDesktop()) return;
+        const followed = await consumePendingFollow();
+        if (followed) {
+          navigate("/community", {
+            replace: true,
+            state: { message: `You're now following @${followed}.` },
+          });
+          return;
+        }
         navigate(result.showTour ? "/studio?onboard=1" : "/studio", { replace: true });
         return;
       }

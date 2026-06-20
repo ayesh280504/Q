@@ -9,7 +9,9 @@ Native Expo app — phone HUD for accept/decline at the mixer.
 npm run sync:env   # writes apps/booth/.env + VITE_Q_CROWD_LAN_URL for desktop QR
 
 npm install
-npm run dev:booth
+npm run dev:booth          # uses apps/booth/.env (production or your own URLs)
+# OR for same-Wi‑Fi laptop testing:
+npm run dev:booth:lan      # overwrites apps/booth/.env with LAN IP from root .env
 ```
 
 In another terminal: `npm run dev:stack` (API + crowd) and `npm run dev:desktop`.

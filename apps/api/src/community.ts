@@ -134,6 +134,7 @@ community.patch("/auth/me", async (c) => {
     bio?: string;
     avatarUrl?: string;
     socialLinks?: import("@q/shared").DjSocialLinks;
+    tipUrl?: string;
   };
   const bio = body.bio !== undefined ? body.bio.trim() || null : user.bio;
   const avatarUrl = body.avatarUrl !== undefined ? body.avatarUrl.trim() || null : user.avatar_url;
@@ -141,10 +142,14 @@ community.patch("/auth/me", async (c) => {
     body.socialLinks !== undefined
       ? serializeSocialLinks(body.socialLinks)
       : user.social_links;
+  const tipUrl =
+    body.tipUrl !== undefined
+      ? body.tipUrl.trim().slice(0, 512) || null
+      : user.tip_url;
 
   db.prepare(
-    `UPDATE users SET display_name = handle, bio = ?, avatar_url = ?, social_links = ? WHERE id = ?`,
-  ).run(bio, avatarUrl, socialLinks, user.id);
+    `UPDATE users SET display_name = handle, bio = ?, avatar_url = ?, social_links = ?, tip_url = ? WHERE id = ?`,
+  ).run(bio, avatarUrl, socialLinks, tipUrl, user.id);
 
   const updated = db.prepare(`SELECT * FROM users WHERE id = ?`).get(user.id);
   return c.json({ user: rowToProfile(updated as Parameters<typeof rowToProfile>[0]) });
@@ -165,11 +170,96 @@ community.get("/djs/:handle", (c) => {
     )
     .all(user.id) as MixRow[];
 
+  const ratingRow = db
+    .prepare(
+      `SELECT AVG(gr.score) AS avg_score, COUNT(*) AS n
+       FROM gig_ratings gr
+       INNER JOIN sessions s ON s.id = gr.session_id
+       WHERE s.dj_user_id = ?`,
+    )
+    .get(user.id) as { avg_score: number | null; n: number } | undefined;
+
   const profile: DjProfilePublic = {
     ...rowToProfile(user),
     mixes: mixes.map(rowToMix),
+    gigRatings:
+      ratingRow && ratingRow.n > 0 && ratingRow.avg_score != null
+        ? {
+            averageScore: Math.round(ratingRow.avg_score * 10) / 10,
+            ratingCount: ratingRow.n,
+          }
+        : undefined,
   };
   return c.json({ profile });
+});
+
+/** Lightweight public card for crowd post-gig (tip link + ratings). */
+community.get("/djs/:handle/summary", (c) => {
+  const handle = normalizeHandle(c.req.param("handle"));
+  if (!handle) return c.json({ error: "DJ not found" }, 404);
+  const user = db.prepare(`SELECT id, handle, display_name, tip_url FROM users WHERE handle = ?`).get(
+    handle,
+  ) as { id: string; handle: string; display_name: string; tip_url: string | null } | undefined;
+  if (!user) return c.json({ error: "DJ not found" }, 404);
+  const ratingRow = db
+    .prepare(
+      `SELECT AVG(gr.score) AS avg_score, COUNT(*) AS n
+       FROM gig_ratings gr
+       INNER JOIN sessions s ON s.id = gr.session_id
+       WHERE s.dj_user_id = ?`,
+    )
+    .get(user.id) as { avg_score: number | null; n: number } | undefined;
+  return c.json({
+    handle: user.handle,
+    displayName: user.display_name,
+    tipUrl: user.tip_url?.trim() || undefined,
+    gigRatings:
+      ratingRow && ratingRow.n > 0 && ratingRow.avg_score != null
+        ? {
+            averageScore: Math.round(ratingRow.avg_score * 10) / 10,
+            ratingCount: ratingRow.n,
+          }
+        : undefined,
+  });
+});
+
+/** DJs ranked by crowd gig ratings — discovery seed. */
+community.get("/djs/top-rated", (c) => {
+  const limit = Math.min(parseInt(c.req.query("limit") || "8", 10), 20);
+  const minSets = Math.max(1, parseInt(c.req.query("minSets") || "1", 10));
+  const rows = db
+    .prepare(
+      `SELECT u.handle, u.display_name, u.verified, u.avatar_url,
+              AVG(gr.score) AS avg_score, COUNT(gr.id) AS n
+       FROM users u
+       INNER JOIN sessions s ON s.dj_user_id = u.id
+       INNER JOIN gig_ratings gr ON gr.session_id = s.id
+       GROUP BY u.id
+       HAVING n >= ?
+       ORDER BY avg_score DESC, n DESC
+       LIMIT ?`,
+    )
+    .all(minSets, limit) as Array<{
+      handle: string;
+      display_name: string;
+      verified: number;
+      avatar_url: string | null;
+      avg_score: number;
+      n: number;
+    }>;
+
+  return c.json({
+    djs: rows.map((r) => ({
+      handle: r.handle,
+      displayName: r.display_name,
+      verified: r.verified === 1,
+      avatarUrl: r.avatar_url ?? undefined,
+      gigRatings: {
+        averageScore: Math.round(r.avg_score * 10) / 10,
+        ratingCount: r.n,
+      },
+    })),
+  });
 });
 
 type FeedRow = MixRow & {
@@ -178,6 +268,22 @@ type FeedRow = MixRow & {
   verified: number;
   avatar_url: string | null;
 };
+
+function gigRatingsForUser(userId: string): import("@q/shared").DjGigRatingStats | undefined {
+  const ratingRow = db
+    .prepare(
+      `SELECT AVG(gr.score) AS avg_score, COUNT(*) AS n
+       FROM gig_ratings gr
+       INNER JOIN sessions s ON s.id = gr.session_id
+       WHERE s.dj_user_id = ?`,
+    )
+    .get(userId) as { avg_score: number | null; n: number } | undefined;
+  if (!ratingRow || ratingRow.n <= 0 || ratingRow.avg_score == null) return undefined;
+  return {
+    averageScore: Math.round(ratingRow.avg_score * 10) / 10,
+    ratingCount: ratingRow.n,
+  };
+}
 
 function mapFeedRow(r: FeedRow, viewerId?: string) {
   const stats = mixEngagementStats(r.id, viewerId);
@@ -192,6 +298,7 @@ function mapFeedRow(r: FeedRow, viewerId?: string) {
       displayName: r.display_name,
       verified: r.verified === 1,
       avatarUrl: r.avatar_url ?? undefined,
+      gigRatings: gigRatingsForUser(r.user_id),
     },
   };
 }

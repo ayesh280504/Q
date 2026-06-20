@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthGateModal from "../components/AuthGateModal";
 import CommunityLayout from "../components/CommunityLayout";
 import MixCommentsModal from "../components/MixCommentsModal";
@@ -7,12 +7,14 @@ import { useAuth } from "../context/AuthContext";
 import {
   fetchFeed,
   fetchFollowingFeed,
+  fetchTopRatedDjs,
   likeMix,
   recordMixPlay,
   saveMix,
   unlikeMix,
   unsaveMix,
   type FeedMix,
+  type TopRatedDj,
 } from "../lib/accountApi";
 
 type FeedTab = "popular" | "following";
@@ -96,6 +98,12 @@ function MixCard({
             @{mix.dj.handle}
             {mix.dj.verified ? " ✓" : ""}
           </Link>
+          {mix.dj.gigRatings && mix.dj.gigRatings.ratingCount > 0 && (
+            <span className="community-mix-rating" title="Crowd gig rating">
+              ★ {mix.dj.gigRatings.averageScore.toFixed(1)} · {mix.dj.gigRatings.ratingCount} set
+              {mix.dj.gigRatings.ratingCount !== 1 ? "s" : ""}
+            </span>
+          )}
           <span className="community-mix-plays">
             <span className="community-mix-plays-dot" aria-hidden />
             {likes.toLocaleString()}
@@ -153,6 +161,16 @@ function EmptyFollowing({ signedIn }: { signedIn: boolean }) {
 
 export default function CommunityFeed() {
   const { signedIn } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [followBanner, setFollowBanner] = useState<string | null>(
+    () => (location.state as { message?: string } | null)?.message ?? null,
+  );
+  useEffect(() => {
+    if (!followBanner) return;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [followBanner, location.pathname, navigate]);
+
   const [tab, setTab] = useState<FeedTab>("popular");
   const [genre, setGenre] = useState<(typeof GENRES)[number]>("All");
   const [mixes, setMixes] = useState<FeedMix[]>([]);
@@ -160,6 +178,13 @@ export default function CommunityFeed() {
   const [loading, setLoading] = useState(true);
   const [gateAction, setGateAction] = useState<string | null>(null);
   const [commentMix, setCommentMix] = useState<FeedMix | null>(null);
+  const [topRated, setTopRated] = useState<TopRatedDj[]>([]);
+
+  useEffect(() => {
+    void fetchTopRatedDjs(6)
+      .then((d) => setTopRated(d.djs))
+      .catch(() => setTopRated([]));
+  }, []);
 
   const loadFeed = useCallback(async () => {
     setLoading(true);
@@ -251,6 +276,15 @@ export default function CommunityFeed() {
         />
       )}
 
+      {followBanner && (
+        <p className="community-follow-banner" role="status">
+          {followBanner}{" "}
+          <button type="button" className="btn-link-nav" onClick={() => setFollowBanner(null)}>
+            Dismiss
+          </button>
+        </p>
+      )}
+
       <section className="community-hero">
         <p className="community-hero-kicker">
           <span className="mkt-display-kicker-dot" aria-hidden />
@@ -273,6 +307,25 @@ export default function CommunityFeed() {
           </aside>
         </div>
       </section>
+
+      {topRated.length > 0 && (
+        <section className="community-top-rated" aria-label="Top rated DJs">
+          <p className="community-top-rated-kicker">// Top rated · crowd gigs</p>
+          <ul className="community-top-rated-list">
+            {topRated.map((dj) => (
+              <li key={dj.handle}>
+                <Link to={`/dj/${dj.handle}`} className="community-top-rated-card">
+                  <strong>@{dj.handle}</strong>
+                  <span>
+                    ★ {dj.gigRatings.averageScore.toFixed(1)} · {dj.gigRatings.ratingCount} set
+                    {dj.gigRatings.ratingCount !== 1 ? "s" : ""}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="community-toolbar-section">
         <div className="community-toolbar">

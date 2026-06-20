@@ -175,6 +175,11 @@ export default function OverlayDock({
                   <span className="overlay-track-meta" title={r.artist}>
                     {r.artist}
                   </span>
+                  {r.message && (
+                    <span className="overlay-shoutout" title={r.message}>
+                      &ldquo;{r.message}&rdquo;
+                    </span>
+                  )}
                   {r.playedEarlierTonight && (
                     <span className="overlay-badge">Played earlier</span>
                   )}

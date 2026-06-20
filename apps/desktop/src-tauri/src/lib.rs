@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 mod prolink;
 mod sentinel;
+mod ble_beacon;
 
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
@@ -303,6 +304,44 @@ fn serato_subcrates_candidates() -> Vec<PathBuf> {
     paths
 }
 
+/// Native OS drag — drop a local audio file onto Serato / Rekordbox decks.
+#[tauri::command]
+fn start_file_drag(window: tauri::WebviewWindow, path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("No file path.".to_string());
+    }
+    let p = PathBuf::from(trimmed);
+    if !p.is_file() {
+        return Err("Track file not found on disk. Import your library so Q knows local paths.".to_string());
+    }
+    let abs = p.canonicalize().map_err(|e| e.to_string())?;
+
+    let icon_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("icons/32x32.png");
+    let preview_icon = drag::Image::File(icon_path);
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let w = window.clone();
+    window
+        .run_on_main_thread(move || {
+            let result = drag::start_drag(
+                &w,
+                drag::DragItem::Files(vec![abs]),
+                preview_icon,
+                |_result, _pos| {},
+                drag::Options::default(),
+            );
+            let _ = tx.send(result);
+        })
+        .map_err(|e| e.to_string())?;
+
+    match rx.recv() {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(e.to_string()),
+        Err(_) => Err("Drag operation failed.".to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -324,6 +363,10 @@ pub fn run() {
             get_lan_ipv4,
             write_q_requests_playlist,
             write_serato_q_requests_crate,
+            start_file_drag,
+            ble_beacon::start_ble_beacon,
+            ble_beacon::stop_ble_beacon,
+            ble_beacon::ble_beacon_status,
             prolink::prolink_request_status,
             sentinel::detect_dj_software_running,
         ]);

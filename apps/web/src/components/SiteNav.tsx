@@ -65,6 +65,42 @@ export default function SiteNav({ overHero, variant = "default" }: SiteNavProps)
         className={`site-nav-links ${menuOpen ? "site-nav-links-open" : ""}`}
       >
         <Link
+          to="/features"
+          onClick={closeMenu}
+          className={[
+            isMarketing ? "site-nav-text" : "",
+            isMarketing && location.pathname === "/features" ? "site-nav-link-active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined}
+        >
+          Features
+        </Link>
+        <Link
+          to="/integrations"
+          onClick={closeMenu}
+          className={[
+            isMarketing ? "site-nav-text" : "",
+            isMarketing && location.pathname === "/integrations" ? "site-nav-link-active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined}
+        >
+          Integrations
+        </Link>
+        <Link
+          to="/for-djs"
+          onClick={closeMenu}
+          className={[
+            isMarketing ? "site-nav-text" : "",
+            isMarketing && location.pathname === "/for-djs" ? "site-nav-link-active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined}
+        >
+          {isMarketing ? "For DJs" : "DJs"}
+        </Link>
+        <Link
           to="/download"
           onClick={closeMenu}
           className={[

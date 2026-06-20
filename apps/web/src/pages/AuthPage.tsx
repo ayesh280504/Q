@@ -11,6 +11,7 @@ import {
   hasReturnToDesktop,
   markReturnToDesktop,
 } from "../lib/returnToDesktop";
+import { consumePendingFollow, savePendingFollow } from "../lib/pendingFollow";
 
 const googleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE === "true";
 
@@ -30,6 +31,14 @@ export default function AuthPage() {
   useEffect(() => {
     if (searchParams.get("returnTo") === "desktop") markReturnToDesktop();
   }, [searchParams]);
+
+  const followHandle = searchParams.get("follow")?.trim().toLowerCase() || null;
+  const fromCrowd = searchParams.get("from") === "crowd";
+
+  useEffect(() => {
+    if (followHandle) savePendingFollow(followHandle);
+  }, [followHandle]);
+
   const returnToDesktop = hasReturnToDesktop();
 
   useEffect(() => {
@@ -47,13 +56,25 @@ export default function AuthPage() {
     };
   }, [returnToDesktop]);
 
+  async function afterAuthNavigate(showTour: boolean) {
+    const followed = await consumePendingFollow();
+    if (await consumeReturnToDesktop()) return;
+    if (followed) {
+      navigate("/community", {
+        replace: true,
+        state: { message: `You're now following @${followed}.` },
+      });
+      return;
+    }
+    navigate(showTour ? "/studio?onboard=1" : "/studio", { replace: true });
+  }
+
   async function afterSupabaseSession() {
     if (!supabase) return;
     const { data } = await supabase.auth.getSession();
     const result = await ensureQProfile(data.session);
     if (result.ok) {
-      if (await consumeReturnToDesktop()) return;
-      navigate(result.showTour ? "/studio?onboard=1" : "/studio", { replace: true });
+      await afterAuthNavigate(result.showTour);
     } else if (result.reason === "sync-failed") {
       setError(result.message ?? "Could not save username");
     } else {
@@ -126,6 +147,14 @@ export default function AuthPage() {
           : await login(email, password);
       saveAccountToken(res.accountToken);
       if (await consumeReturnToDesktop({ handle: res.user.handle })) return;
+      const followed = await consumePendingFollow();
+      if (followed) {
+        navigate("/community", {
+          replace: true,
+          state: { message: `You're now following @${followed}.` },
+        });
+        return;
+      }
       navigate("/studio");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -136,14 +165,37 @@ export default function AuthPage() {
 
   return (
     <AuthLayout
-      formKicker={mode === "register" ? "// New account" : "// Returning DJ"}
+      formKicker={
+        fromCrowd
+          ? mode === "register"
+            ? "// After the set"
+            : "// Welcome back"
+          : mode === "register"
+            ? "// New account"
+            : "// Returning DJ"
+      }
       formTitle={mode === "register" ? ["Sign", "Up."] : ["Sign", "In."]}
     >
       <p className="auth-form-sub">
-        {mode === "register"
-          ? "Claim your handle. Open your booth."
-          : "Access your mix locker and studio."}
+        {fromCrowd && followHandle ? (
+          <>
+            Follow <strong>@{followHandle}</strong> and get notified when they&apos;re live again.
+          </>
+        ) : fromCrowd && mode === "register" ? (
+          "Create a free account to follow DJs and save your booth nights."
+        ) : mode === "register" ? (
+          "Claim your handle. Open your booth."
+        ) : (
+          "Access your mix locker and studio."
+        )}
       </p>
+
+      {fromCrowd && (
+        <div className="auth-from-desktop-banner">
+          <strong>From the crowd portal.</strong>
+          <span> No app needed to request tracks — this account is for following DJs.</span>
+        </div>
+      )}
 
       {returnToDesktop && (
         <div className="auth-from-desktop-banner">
@@ -174,7 +226,7 @@ export default function AuthPage() {
               pattern="[a-z][a-z0-9_]{2,23}"
               title="3–24 chars, lowercase letters, numbers, underscore"
               autoComplete="username"
-              placeholder="dj handle"
+              placeholder={fromCrowd ? "pick a username" : "dj handle"}
             />
           </label>
         )}
@@ -216,7 +268,9 @@ export default function AuthPage() {
             {busy
               ? "…"
               : mode === "register"
-                ? "Create account →"
+                ? fromCrowd
+                  ? "Create account →"
+                  : "Create account →"
                 : "Enter booth →"}
           </span>
         </button>

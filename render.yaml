@@ -14,8 +14,8 @@ services:
       - key: Q_DATA_DIR
         value: ./data
       - key: Q_CROWD_URL
-        value: https://placeholder.vercel.app
+        value: https://q-crowd.vercel.app
       - key: Q_WEB_URL
-        value: https://placeholder.vercel.app
+        value: https://q-web-liart.vercel.app
       - key: SUPABASE_URL
         sync: false
