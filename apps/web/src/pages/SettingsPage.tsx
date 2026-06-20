@@ -12,6 +12,7 @@ const SOCIAL_FIELDS: Array<{ key: keyof DjSocialLinks; label: string; placeholde
     { key: "instagram", label: "Instagram", placeholder: "@yourhandle or full URL" },
     { key: "twitter", label: "X (Twitter)", placeholder: "@yourhandle or full URL" },
     { key: "soundcloud", label: "SoundCloud", placeholder: "Profile URL or username" },
+    { key: "spotify", label: "Spotify", placeholder: "Artist/user URL or username" },
     { key: "tiktok", label: "TikTok", placeholder: "@yourhandle or full URL" },
     { key: "website", label: "Website", placeholder: "https://yoursite.com" },
   ];
@@ -100,7 +101,7 @@ export default function SettingsPage() {
 
           <section className="settings-section card">
             <h2>Social links</h2>
-            <p className="muted small">Shown as buttons on your public DJ page.</p>
+            <p className="muted small">Shown on your public profile and after gigs when the set ends.</p>
             {SOCIAL_FIELDS.map((f) => (
               <label key={String(f.key)}>
                 {f.label}

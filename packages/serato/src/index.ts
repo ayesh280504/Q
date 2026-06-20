@@ -227,22 +227,12 @@ export function parseSeratoHistorySessionTracks(bytes: Uint8Array): SeratoNowPla
 
 /**
  * Current / most recent track from a History .session file.
- * Serato appends rows in play order — the last row is usually what's on deck now.
+ * Serato appends rows in play order — last chronological row is what's on deck.
  */
 export function parseSeratoHistorySession(bytes: Uint8Array): SeratoNowPlaying | null {
-  const tree = decodeCrate(bytes);
-  const entries = extractFromOent(tree);
+  const entries = parseSeratoHistorySessionTracks(bytes);
   if (entries.length === 0) return null;
-
-  const lastInFile = entries[entries.length - 1]!;
-  const byTime = entries.reduce((latest, entry) => {
-    const a = latest.playedAt ?? 0;
-    const b = entry.playedAt ?? 0;
-    return b >= a ? entry : latest;
-  });
-
-  if ((byTime.playedAt ?? 0) > (lastInFile.playedAt ?? 0)) return byTime;
-  return lastInFile;
+  return entries[entries.length - 1]!;
 }
 
 export function parseSeratoCrate(bytes: Uint8Array, sourcePath: string): SeratoParseResult {

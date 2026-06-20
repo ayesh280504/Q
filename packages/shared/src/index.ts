@@ -2,6 +2,7 @@ export * from "./sanitize.js";
 export * from "./harmonic.js";
 export * from "./urls.js";
 export * from "./ble.js";
+export * from "./socialLinks.js";
 
 export type RequestStatus = "pending" | "accepted" | "declined";
 
@@ -206,6 +207,7 @@ export interface DjSocialLinks {
   instagram?: string;
   twitter?: string;
   soundcloud?: string;
+  spotify?: string;
   tiktok?: string;
   website?: string;
 }

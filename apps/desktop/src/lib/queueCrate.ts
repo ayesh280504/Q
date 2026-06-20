@@ -14,6 +14,7 @@
  */
 
 import type { TrackRecord } from "@q/shared";
+import { tracksMatch } from "./trackMatch";
 
 const STORAGE_KEY_PREFIX = "q-requests-crate";
 
@@ -151,4 +152,22 @@ export function buildImportIndex(tracks: TrackRecord[]): Map<string, TrackRecord
     if (t.externalId) out.set(t.externalId, t);
   }
   return out;
+}
+
+/** Resolve a library row (with localPath) from sync id or loose title/artist match. */
+export function lookupInImportIndex(
+  importIndex: Map<string, TrackRecord>,
+  opts: { externalId?: string | null; matchedTrackId?: string | null; title?: string; artist?: string },
+): TrackRecord | undefined {
+  for (const id of [opts.matchedTrackId, opts.externalId]) {
+    if (!id) continue;
+    const hit = importIndex.get(id);
+    if (hit) return hit;
+  }
+  const title = opts.title?.trim();
+  if (!title) return undefined;
+  for (const t of importIndex.values()) {
+    if (tracksMatch(t.title, t.artist, title, opts.artist ?? "")) return t;
+  }
+  return undefined;
 }

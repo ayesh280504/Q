@@ -1,8 +1,11 @@
+import { useEffect, useState } from "react";
 import type { NowPlaying } from "../lib/trackMatch";
 import type { SeratoLinkStatus } from "../hooks/useSeratoPlayback";
 import type { ProlinkStatus } from "../hooks/useProlinkPlayback";
+import TrackMeta from "./TrackMeta";
 
 const WAVE_BARS = 48;
+const PLAYHEAD_WIDTH = 14;
 
 function rekordboxIdleMessage(
   prolinkStatus: ProlinkStatus | undefined,
@@ -20,11 +23,12 @@ function rekordboxIdleMessage(
   return "Tap Playing on a queue track when you mix it.";
 }
 
-function waveHeights(seed: string): number[] {
+/** Decorative bar heights seeded from track title — shifts while the same track plays. */
+function waveHeights(seed: string, tick: number): number[] {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 997;
   return Array.from({ length: WAVE_BARS }, (_, i) => {
-    const t = (h + i * 17) % 100;
+    const t = (h + i * 17 + tick * 3) % 100;
     return 22 + Math.sin(i * 0.7 + t * 0.1) * 28 + 28;
   });
 }
@@ -38,7 +42,7 @@ interface Props {
   djSoftware: "rekordbox" | "serato";
 }
 
-/** Command Center now-playing card with waveform (falls back to idle copy). */
+/** Command Center now-playing card — track from Serato; waveform is stylized motion. */
 export default function CommandNowPlaying({
   nowPlaying,
   seratoActive,
@@ -47,8 +51,23 @@ export default function CommandNowPlaying({
   autoAdvanceActive,
   djSoftware,
 }: Props) {
-  const heights = waveHeights(nowPlaying?.title ?? "idle");
-  const activeBars = nowPlaying ? Math.floor(WAVE_BARS * 0.42) : 0;
+  const [tick, setTick] = useState(0);
+  const [playhead, setPlayhead] = useState(0);
+
+  useEffect(() => {
+    if (!nowPlaying) {
+      setTick(0);
+      setPlayhead(0);
+      return;
+    }
+    const id = window.setInterval(() => {
+      setTick((t) => t + 1);
+      setPlayhead((p) => (p + 1) % WAVE_BARS);
+    }, 140);
+    return () => window.clearInterval(id);
+  }, [nowPlaying?.title, nowPlaying?.artist]);
+
+  const heights = waveHeights(nowPlaying?.title ?? "idle", tick);
 
   const idleMessage =
     djSoftware === "serato" && seratoActive && seratoLinkStatus === "no_folder"
@@ -69,24 +88,23 @@ export default function CommandNowPlaying({
         <>
           <p className="command-now-title">{nowPlaying.title}</p>
           <p className="command-now-artist">{nowPlaying.artist}</p>
+          <TrackMeta bpm={nowPlaying.bpm} musicalKey={nowPlaying.key} />
           <div className="command-now-wave" aria-hidden>
-            {heights.map((pct, i) => (
-              <span
-                key={i}
-                style={{
-                  height: `${pct}%`,
-                  opacity: i < activeBars ? 1 : 0.22,
-                }}
-              />
-            ))}
+            {heights.map((pct, i) => {
+              const inPlayhead =
+                i >= playhead && i < playhead + PLAYHEAD_WIDTH;
+              return (
+                <span
+                  key={i}
+                  className={inPlayhead ? "command-now-bar command-now-bar--hot" : "command-now-bar"}
+                  style={{ height: `${pct}%` }}
+                />
+              );
+            })}
           </div>
           <div className="command-now-meta">
-            <span>Live</span>
-            <span>
-              {nowPlaying.bpm ? `${nowPlaying.bpm} BPM` : "—"}
-              {nowPlaying.key ? ` · ${nowPlaying.key}` : ""}
-            </span>
-            <span>—</span>
+            <span>Track live from Serato</span>
+            <span className="command-now-meta-hint">Stylized viz</span>
           </div>
         </>
       ) : (

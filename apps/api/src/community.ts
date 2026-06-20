@@ -197,9 +197,15 @@ community.get("/djs/:handle", (c) => {
 community.get("/djs/:handle/summary", (c) => {
   const handle = normalizeHandle(c.req.param("handle"));
   if (!handle) return c.json({ error: "DJ not found" }, 404);
-  const user = db.prepare(`SELECT id, handle, display_name, tip_url FROM users WHERE handle = ?`).get(
+  const user = db.prepare(`SELECT id, handle, display_name, tip_url, social_links FROM users WHERE handle = ?`).get(
     handle,
-  ) as { id: string; handle: string; display_name: string; tip_url: string | null } | undefined;
+  ) as {
+    id: string;
+    handle: string;
+    display_name: string;
+    tip_url: string | null;
+    social_links: string | null;
+  } | undefined;
   if (!user) return c.json({ error: "DJ not found" }, 404);
   const ratingRow = db
     .prepare(
@@ -213,6 +219,7 @@ community.get("/djs/:handle/summary", (c) => {
     handle: user.handle,
     displayName: user.display_name,
     tipUrl: user.tip_url?.trim() || undefined,
+    socialLinks: parseSocialLinks(user.social_links),
     gigRatings:
       ratingRow && ratingRow.n > 0 && ratingRow.avg_score != null
         ? {

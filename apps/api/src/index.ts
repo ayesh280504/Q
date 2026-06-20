@@ -659,20 +659,39 @@ app.post("/sessions/:code/rating", async (c) => {
     return c.json({ error: "Missing guest id — refresh and try again." }, 400);
   }
 
-  const body = (await c.req.json()) as { score?: number };
-  const score = Math.round(Number(body.score));
-  if (!Number.isFinite(score) || score < 1 || score > 5) {
+  const body = (await c.req.json()) as { score?: number; comment?: string | null };
+  const scoreRaw = body.score != null ? Math.round(Number(body.score)) : null;
+  const comment =
+    body.comment !== undefined
+      ? String(body.comment).trim().slice(0, 280) || null
+      : undefined;
+
+  const existing = db
+    .prepare(`SELECT score, comment FROM gig_ratings WHERE session_id = ? AND guest_id = ?`)
+    .get(row.id, guestId) as { score: number; comment: string | null } | undefined;
+
+  const score =
+    scoreRaw != null && Number.isFinite(scoreRaw) && scoreRaw >= 1 && scoreRaw <= 5
+      ? scoreRaw
+      : existing?.score;
+
+  if (score == null || !Number.isFinite(score) || score < 1 || score > 5) {
     return c.json({ error: "Score must be 1–5" }, 400);
   }
 
   const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO gig_ratings (session_id, guest_id, score, created_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(session_id, guest_id) DO UPDATE SET score = excluded.score, created_at = excluded.created_at`,
-  ).run(row.id, guestId, score, now);
+  const finalComment = comment !== undefined ? comment : (existing?.comment ?? null);
 
-  return c.json({ ok: true, score });
+  db.prepare(
+    `INSERT INTO gig_ratings (session_id, guest_id, score, comment, created_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(session_id, guest_id) DO UPDATE SET
+       score = excluded.score,
+       comment = COALESCE(excluded.comment, gig_ratings.comment),
+       created_at = excluded.created_at`,
+  ).run(row.id, guestId, score, finalComment, now);
+
+  return c.json({ ok: true, score, comment: finalComment });
 });
 
 app.post("/sessions/:sessionId/library", async (c) => {

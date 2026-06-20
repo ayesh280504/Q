@@ -228,6 +228,54 @@ body {
   font-weight: 700;
 }
 
+.dj-social-icons {
+  margin: 0 0 1.1rem;
+}
+
+.dj-social-icons-label {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.dj-social-icons-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.dj-social-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dj-social-icon-btn:hover {
+  background: rgba(244, 114, 182, 0.18);
+  border-color: rgba(244, 114, 182, 0.45);
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+.offline-booth .dj-social-icons-row {
+  justify-content: flex-start;
+}
+
 .post-gig-actions {
   display: flex;
   flex-direction: column;
@@ -399,6 +447,79 @@ body {
   margin: 0.5rem 0 0;
   font-size: 0.78rem;
   color: #fca5a5;
+}
+
+.post-gig-review {
+  margin-top: 1rem;
+  text-align: left;
+}
+
+.post-gig-review-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.post-gig-optional {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--mkt-display);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.post-gig-review-input {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: #f4f4f5;
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 4.5rem;
+}
+
+.post-gig-review-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.45rem;
+}
+
+.post-gig-review-count {
+  font-family: var(--mkt-mono);
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.post-gig-review-submit {
+  font-size: 0.62rem !important;
+  padding: 0.45rem 0.75rem !important;
+}
+
+.post-gig-tip-block {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.post-gig-tip-lead {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.post-gig-tip-block .post-gig-tip {
+  width: 100%;
+  display: block;
+  text-align: center;
 }
 
 .post-gig-rating-note {

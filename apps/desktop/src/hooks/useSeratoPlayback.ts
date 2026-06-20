@@ -51,10 +51,10 @@ export function useSeratoPlayback({
           return;
         }
 
-        let bestNow: NowPlaying | null = null;
-        let bestNowTs = -1;
-        let bestHistory: PlayedTrack[] = [];
-        let bestHistoryLen = 0;
+        // Paths are newest-modified first. Use the active session file — do NOT
+        // pick max playedAt across old session files (shows wrong "now playing").
+        let activeNow: NowPlaying | null = null;
+        let activeHistory: PlayedTrack[] = [];
 
         for (const path of paths) {
           const bytes = await invoke<number[]>("read_binary_file", { path });
@@ -65,51 +65,39 @@ export function useSeratoPlayback({
           if (entries.length === 0) continue;
 
           const now = parseSeratoHistorySession(buf);
-          if (entries.length >= bestHistoryLen) {
-            bestHistoryLen = entries.length;
-            bestHistory = entries.map((e) => ({
-              title: e.title,
-              artist: e.artist,
-              playedAt: e.playedAt,
-            }));
-          }
-          // Newest session file can be empty while an older file has tonight's plays.
-          const nowTs = now?.playedAt ?? entries[entries.length - 1]?.playedAt ?? 0;
-          if (now && nowTs >= bestNowTs) {
-            bestNowTs = nowTs;
-            bestNow = now;
-          }
+          activeHistory = entries.map((e) => ({
+            title: e.title,
+            artist: e.artist,
+            playedAt: e.playedAt,
+          }));
+          activeNow = now ?? {
+            title: entries[entries.length - 1]!.title,
+            artist: entries[entries.length - 1]!.artist,
+            playedAt: entries[entries.length - 1]!.playedAt,
+            bpm: entries[entries.length - 1]!.bpm,
+            key: entries[entries.length - 1]!.key,
+          };
+          break;
         }
 
-        if (bestHistoryLen === 0) {
+        if (!activeNow || activeHistory.length === 0) {
           onLinkStatusRef.current?.("empty");
           return;
         }
 
         onLinkStatusRef.current?.("ok");
-        onHistoryRef.current(bestHistory);
+        onHistoryRef.current(activeHistory);
 
-        if (!bestNow && bestHistory.length > 0) {
-          const last = bestHistory[bestHistory.length - 1]!;
-          bestNow = {
-            title: last.title,
-            artist: last.artist,
-            playedAt: last.playedAt,
-          };
-        }
-
-        if (!bestNow) return;
-
-        const key = `${bestNow.playedAt ?? 0}:${bestNow.title}:${bestNow.artist}:${bestNow.bpm ?? ""}:${bestNow.key ?? ""}`;
+        const key = `${activeNow.playedAt ?? 0}:${activeNow.title}:${activeNow.artist}:${activeNow.bpm ?? ""}:${activeNow.key ?? ""}`;
         if (key === lastKeyRef.current) return;
         lastKeyRef.current = key;
 
         onNowPlayingRef.current({
-          title: bestNow.title,
-          artist: bestNow.artist,
-          bpm: bestNow.bpm,
-          key: bestNow.key,
-          playedAt: bestNow.playedAt,
+          title: activeNow.title,
+          artist: activeNow.artist,
+          bpm: activeNow.bpm,
+          key: activeNow.key,
+          playedAt: activeNow.playedAt,
         });
       } catch {
         onLinkStatusRef.current?.("no_folder");

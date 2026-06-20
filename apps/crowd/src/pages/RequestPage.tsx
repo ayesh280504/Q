@@ -49,6 +49,26 @@ export default function RequestPage() {
     new Map(),
   );
 
+  const TOAST_MS = 5000;
+
+  useEffect(() => {
+    if (!acceptToast) return;
+    const t = window.setTimeout(() => setAcceptToast(null), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [acceptToast]);
+
+  useEffect(() => {
+    if (!declineToast) return;
+    const t = window.setTimeout(() => setDeclineToast(null), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [declineToast]);
+
+  useEffect(() => {
+    if (!sent) return;
+    const t = window.setTimeout(() => setSent(null), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [sent]);
+
   const loadSession = useCallback(async () => {
     if (!code) return null;
     const data = await api<{ session: Session }>(`/sessions/${code}`);
@@ -224,7 +244,11 @@ export default function RequestPage() {
             </>
           }
         />
-        <PostGigRating sessionCode={session.code} displayName={djName ?? "the DJ"} />
+        <PostGigRating
+          sessionCode={session.code}
+          displayName={djName ?? "the DJ"}
+          djHandle={session.djHandle}
+        />
         <PostGigCta
           variant="ended"
           displayName={djName ?? "the DJ"}

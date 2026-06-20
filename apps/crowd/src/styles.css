@@ -223,6 +223,35 @@ input {
   border-radius: 10px;
   background: #14532d;
   color: #bbf7d0;
+  animation: toast-enter 0.28s ease, toast-hold-fade 5s ease forwards;
+}
+
+.toast-accepted {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-hold-fade {
+  0%,
+  75% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 .toast-declined {
@@ -231,6 +260,7 @@ input {
   color: #fecaca;
   border: 1px solid rgba(248, 113, 113, 0.4);
   padding-right: 2.4rem;
+  animation: toast-enter 0.28s ease, toast-hold-fade 5s ease forwards;
 }
 
 .toast-declined em {

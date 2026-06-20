@@ -198,3 +198,4 @@ db.exec(`
   );
 `);
 
+ensureColumn("gig_ratings", "comment", `ALTER TABLE gig_ratings ADD COLUMN comment TEXT`);

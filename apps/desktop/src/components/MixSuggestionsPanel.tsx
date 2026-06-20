@@ -3,6 +3,9 @@ import type { MixSuggestionHit } from "@q/shared";
 import { fetchMixSuggestions } from "../api";
 import DraggableTrackRow, { mixHitToDraggable } from "./DraggableTrackRow";
 import type { TrackRecord } from "@q/shared";
+import { lookupInImportIndex } from "../lib/queueCrate";
+
+const MAX_VISIBLE = 4;
 
 type MixSuggestionsPanelProps = {
   sessionId: string;
@@ -29,6 +32,7 @@ export default function MixSuggestionsPanel({
   const [hits, setHits] = useState<MixSuggestionHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const load = useCallback(async () => {
     if (!nowPlaying || trackCount === 0) {
@@ -44,6 +48,7 @@ export default function MixSuggestionsPanel({
         artist: nowPlaying.artist,
         bpm: nowPlaying.bpm,
         key: nowPlaying.key,
+        limit: 8,
       });
       setHits(data.suggestions);
     } catch (e) {
@@ -62,61 +67,76 @@ export default function MixSuggestionsPanel({
 
   if (!nowPlaying) {
     return (
-      <section className="mix-coach mix-coach-empty">
-        <p className="command-section-kicker">// Mix coach</p>
-        <p className="muted">Start playing — Q ranks your library for the next blend.</p>
+      <section className="mix-coach mix-coach-compact mix-coach-empty">
+        <p className="mix-coach-inline-kicker">Mix coach</p>
+        <p className="mix-coach-inline-hint">Starts when Serato reports a track.</p>
       </section>
     );
   }
 
   if (trackCount === 0) {
     return (
-      <section className="mix-coach mix-coach-empty">
-        <p className="command-section-kicker">// Mix coach</p>
-        <p className="muted">Import library + Sync so Q can suggest harmonic matches.</p>
+      <section className="mix-coach mix-coach-compact mix-coach-empty">
+        <p className="mix-coach-inline-kicker">Mix coach</p>
+        <p className="mix-coach-inline-hint">Import + Sync for harmonic picks.</p>
       </section>
     );
   }
 
+  const visible = expanded ? hits : hits.slice(0, MAX_VISIBLE);
+  const hiddenCount = hits.length - MAX_VISIBLE;
+
   return (
-    <section className="mix-coach">
-      <div className="mix-coach-head">
-        <p className="command-section-kicker command-section-kicker--mix">
-          // Mix coach · drag onto deck
-        </p>
-        <p className="mix-coach-from muted">
-          From {nowPlaying.title}
-          {nowPlaying.bpm ? ` · ${nowPlaying.bpm} BPM` : ""}
-          {nowPlaying.key ? ` · ${nowPlaying.key}` : ""}
-        </p>
+    <section className="mix-coach mix-coach-compact">
+      <div className="mix-coach-inline-head">
+        <p className="mix-coach-inline-kicker">Mix coach</p>
+        {loading && hits.length === 0 && <span className="mix-coach-inline-status">…</span>}
+        {!loading && hits.length > 0 && (
+          <span className="mix-coach-inline-status">{hits.length} matches</span>
+        )}
       </div>
-      {loading && hits.length === 0 && <p className="muted">Ranking your crate…</p>}
-      {error && <p className="muted">{error}</p>}
+
+      {error && <p className="mix-coach-inline-hint">{error}</p>}
       {!loading && hits.length === 0 && !error && (
-        <p className="muted">No strong matches in synced library — try Sync after import.</p>
+        <p className="mix-coach-inline-hint">No strong matches — Sync after import.</p>
       )}
-      <ul className="mix-coach-list">
-        {hits.map((hit) => {
-          const local = hit.externalId ? importIndex.get(hit.externalId) : undefined;
-          const localPath = local?.localPath;
-          const track = mixHitToDraggable(hit, localPath);
-          return (
-            <DraggableTrackRow
-              key={hit.id}
-              track={track}
-              variant="suggestion"
-              onLoad={
-                onAddToCrate && local?.externalId
-                  ? () => onAddToCrate(local.externalId, hit.title, hit.artist)
-                  : undefined
-              }
-            />
-          );
-        })}
-      </ul>
-      <p className="mix-coach-hint muted">
-        Drag ⠿ onto Serato or Rekordbox — no API key needed.
-      </p>
+
+      {visible.length > 0 && (
+        <ul className="mix-coach-list mix-coach-list--compact">
+          {visible.map((hit) => {
+            const local = lookupInImportIndex(importIndex, {
+              externalId: hit.externalId,
+              title: hit.title,
+              artist: hit.artist,
+            });
+            const track = mixHitToDraggable(
+              hit,
+              local?.localPath,
+              local?.bpm ?? hit.bpm,
+              local?.key ?? hit.key,
+            );
+            return (
+              <DraggableTrackRow
+                key={hit.id}
+                track={{ ...track, matchDetail: undefined }}
+                variant="suggestion"
+                compact
+                onLoad={
+                  onAddToCrate && local?.externalId
+                    ? () => onAddToCrate(local.externalId, hit.title, hit.artist)
+                    : undefined
+                }
+              />
+            );
+          })}
+        </ul>
+      )}
+
+      {!expanded && hiddenCount > 0 && (
+        <button type="button" className="mix-coach-more" onClick={() => setExpanded(true)}>
+          +{hiddenCount} more
+        </button>
+      )}
     </section>
   );
 }

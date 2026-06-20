@@ -22,6 +22,7 @@ import { importSeratoAuto, importSeratoFromDialog } from "./serato";
 import QLogo from "./components/QLogo";
 import MixSuggestionsPanel from "./components/MixSuggestionsPanel";
 import CommandNowPlaying from "./components/CommandNowPlaying";
+import RequestDragHandle from "./components/RequestDragHandle";
 import NowPlayingBar from "./components/NowPlayingBar";
 import QrSticker from "./components/QrSticker";
 import WelcomeTour from "./components/WelcomeTour";
@@ -53,7 +54,7 @@ import {
   saveRequestAlertsEnabled,
   ensureNotificationPermission,
 } from "./lib/requestAlert";
-import { startFileDrag } from "./lib/fileDrag";
+import { bindFileDragPointer } from "./lib/fileDrag";
 import {
   startBleBeacon,
   stopBleBeacon,
@@ -88,6 +89,7 @@ import {
 import {
   addToQueueCrate,
   buildImportIndex,
+  lookupInImportIndex,
   resetQueueCrate,
 } from "./lib/queueCrate";
 import TrackMeta from "./components/TrackMeta";
@@ -660,9 +662,25 @@ export default function App() {
   const seratoOn = Boolean(gig) && djSoftware === "serato";
   const rekordboxOn = Boolean(gig) && djSoftware === "rekordbox";
 
+  const applySeratoNowPlaying = useCallback((track: NowPlaying | null) => {
+    if (!track) {
+      setNowPlaying(null);
+      return;
+    }
+    const lib = lookupInImportIndex(importIndexRef.current, {
+      title: track.title,
+      artist: track.artist,
+    });
+    setNowPlaying({
+      ...track,
+      bpm: track.bpm ?? lib?.bpm,
+      key: track.key ?? lib?.key,
+    });
+  }, []);
+
   useSeratoPlayback({
     enabled: seratoOn,
-    onNowPlaying: setNowPlaying,
+    onNowPlaying: applySeratoNowPlaying,
     onHistory: setPlayedHistory,
     onLinkStatus: (status) => {
       setSeratoLinkStatus(status);
@@ -2059,12 +2077,11 @@ export default function App() {
                       </span>
                     )}
                     <div className={dockMode ? "dj-queue-main" : "command-queue-body dj-queue-main"}>
-                      <strong>{item.title}</strong>
-                      <span>
-                        {item.artist}
-                        {item.bpm ? ` · ${item.bpm} BPM` : ""}
-                      </span>
-                      {dockMode && <TrackMeta bpm={item.bpm} musicalKey={item.key} />}
+                      <div className="command-queue-headline">
+                        <strong>{item.title}</strong>
+                        <TrackMeta bpm={item.bpm} musicalKey={item.key} compact />
+                      </div>
+                      <span>{item.artist}</span>
                       {item.playedEarlierTonight && (
                         <span className="badge played-earlier">Played once already</span>
                       )}
@@ -2143,23 +2160,15 @@ export default function App() {
                 {r.message && <p className="request-shoutout">&ldquo;{r.message}&rdquo;</p>}
                 <div className="actions">
                   {(() => {
-                    let local: TrackRecord | undefined;
-                    if (r.matchedTrackId) local = importIndexRef.current.get(r.matchedTrackId);
-                    if (!local && r.externalId) local = importIndexRef.current.get(r.externalId);
+                    const local = lookupInImportIndex(importIndexRef.current, {
+                      matchedTrackId: r.matchedTrackId,
+                      externalId: r.externalId,
+                      title: r.title,
+                      artist: r.artist,
+                    });
                     const lp = local?.localPath;
                     return lp ? (
-                      <button
-                        type="button"
-                        className="drag-handle drag-handle-active"
-                        title="Drag onto Serato / Rekordbox deck"
-                        onMouseDown={(e) => {
-                          if (e.button !== 0) return;
-                          e.preventDefault();
-                          void startFileDrag(lp);
-                        }}
-                      >
-                        ⠿
-                      </button>
+                      <RequestDragHandle localPath={lp} />
                     ) : null;
                   })()}
                   <button

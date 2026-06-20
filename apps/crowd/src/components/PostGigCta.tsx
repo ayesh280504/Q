@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import type { DjSocialLinks } from "@q/shared";
 import { api } from "../api";
 import { webBase, crowdLoginUrl, crowdRegisterUrl } from "../lib/webUrl";
+import DjSocialIcons from "./DjSocialIcons";
 
 type Props = {
   displayName: string;
@@ -12,7 +14,7 @@ type Props = {
 type DjSummary = {
   handle: string;
   displayName: string;
-  tipUrl?: string;
+  socialLinks?: DjSocialLinks;
   gigRatings?: { averageScore: number; ratingCount: number };
 };
 
@@ -39,7 +41,6 @@ export default function PostGigCta({ displayName, handle, variant = "offline" }:
   const registerUrl = crowdRegisterUrl(djHandle);
   const loginUrl = crowdLoginUrl(djHandle);
   const downloadUrl = `${webBase()}/download`;
-  const tipUrl = summary?.tipUrl?.trim();
 
   const lead =
     variant === "ended"
@@ -68,12 +69,12 @@ export default function PostGigCta({ displayName, handle, variant = "offline" }:
         </p>
       )}
 
+      <DjSocialIcons
+        links={summary?.socialLinks}
+        heading={variant === "ended" ? `Follow ${displayName} on` : "Find them on"}
+      />
+
       <div className="post-gig-actions">
-        {tipUrl && variant === "ended" && (
-          <a className="btn primary post-gig-btn post-gig-tip" href={tipUrl} target="_blank" rel="noopener noreferrer">
-            Tip the DJ →
-          </a>
-        )}
         <a className="btn primary post-gig-btn" href={registerUrl}>
           Create free account
         </a>
