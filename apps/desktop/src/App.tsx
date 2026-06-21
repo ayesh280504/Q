@@ -108,6 +108,7 @@ import {
   type NowPlaying,
   type PlayedTrack,
   type UpNextItem,
+  tracksMatch,
 } from "./lib/trackMatch";
 import {
   localSuggestionsOffline,
@@ -451,6 +452,8 @@ export default function App() {
   tierRef.current = tier;
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   nowPlayingRef.current = nowPlaying;
+  const prevNowPlayingRef = useRef<NowPlaying | null>(null);
+  const fulfilledQueueIdsRef = useRef<Set<string>>(new Set());
   const lastPlayedSyncRef = useRef(0);
 
   const refreshOutbox = useCallback(() => {
@@ -740,6 +743,28 @@ export default function App() {
     setQueue((prev) => pruneQueueAgainstNowPlaying(nowPlaying, prev));
   }, [nowPlaying]);
 
+  /** When the deck changes, drop the previous track from queue permanently. */
+  useEffect(() => {
+    const prev = prevNowPlayingRef.current;
+    const curr = nowPlaying;
+
+    if (prev?.title) {
+      const changed =
+        !curr?.title ||
+        !tracksMatch(prev.title, prev.artist ?? "", curr.title, curr.artist ?? "");
+      if (changed) {
+        setQueue((q) =>
+          q.filter((item) => {
+            const wasOnDeck = tracksMatch(item.title, item.artist, prev.title, prev.artist ?? "");
+            if (wasOnDeck) fulfilledQueueIdsRef.current.add(item.requestId);
+            return !wasOnDeck;
+          }),
+        );
+      }
+    }
+    prevNowPlayingRef.current = curr;
+  }, [nowPlaying?.title, nowPlaying?.artist]);
+
   useEffect(() => {
     if (!gig || !online || playedHistory.length === 0) return;
     const now = Date.now();
@@ -756,7 +781,16 @@ export default function App() {
     setQueue((prev) => {
       const ids = new Set(prev.map((p) => p.requestId));
       const added = accepted
-        .filter((r) => !ids.has(r.id))
+        .filter((r) => !ids.has(r.id) && !fulfilledQueueIdsRef.current.has(r.id))
+        .filter(
+          (r) =>
+            !wasPlayedEarlierTonight(
+              r.title,
+              r.artist,
+              playedHistory,
+              nowPlayingRef.current,
+            ),
+        )
         .map((r) => requestToQueueItem(r, playedHistory, nowPlayingRef.current));
       const merged = added.length > 0 ? [...prev, ...added] : prev;
       return pruneQueueAgainstNowPlaying(nowPlayingRef.current, merged);
@@ -800,6 +834,17 @@ export default function App() {
       bpm: request.bpm ?? local?.bpm,
       key: request.key ?? local?.key,
     };
+  }
+
+  function queueItemLocalPath(item: UpNextItem): string | undefined {
+    const req = requests.find((r) => r.id === item.requestId);
+    const local = lookupInImportIndex(importIndexRef.current, {
+      matchedTrackId: req?.matchedTrackId,
+      externalId: req?.externalId,
+      title: item.title,
+      artist: item.artist,
+    });
+    return local?.localPath;
   }
 
   function addToQueue(request: CrowdRequest) {
@@ -1338,6 +1383,8 @@ export default function App() {
     setQueue([]);
     setNowPlaying(null);
     setPlayedHistory([]);
+    fulfilledQueueIdsRef.current = new Set();
+    prevNowPlayingRef.current = null;
     setProHints([]);
   }
 
@@ -2101,6 +2148,10 @@ export default function App() {
                         <span className="badge played-earlier">Played once already</span>
                       )}
                     </div>
+                    {(() => {
+                      const lp = queueItemLocalPath(item);
+                      return lp ? <RequestDragHandle localPath={lp} /> : null;
+                    })()}
                     <button
                       type="button"
                       className={dockMode ? "btn-top btn-quiet" : "command-queue-drop"}

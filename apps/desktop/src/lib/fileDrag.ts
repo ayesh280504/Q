@@ -35,6 +35,7 @@ export function bindFileDragPointer(
 
   const onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0 || !localPath.trim()) return;
+    e.preventDefault();
     dragging = false;
     startX = e.clientX;
     startY = e.clientY;

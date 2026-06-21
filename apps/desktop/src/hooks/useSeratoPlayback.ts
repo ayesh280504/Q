@@ -54,6 +54,7 @@ export function useSeratoPlayback({
   onHistoryRef.current = onHistory;
   onLinkStatusRef.current = onLinkStatus;
   const lastKeyRef = useRef<string | null>(null);
+  const lastHistoryLenRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -77,17 +78,22 @@ export function useSeratoPlayback({
         if (stopped || !data?.entries?.length) return false;
 
         onLinkStatusRef.current?.("ok");
-        onHistoryRef.current(
-          data.entries.map((e) => ({
-            title: e.title,
-            artist: e.artist,
-            playedAt: e.played_at > 0 ? e.played_at * 1000 : undefined,
-          })),
-        );
+
+        const historyRows = data.entries.map((e) => ({
+          title: e.title,
+          artist: e.artist,
+          playedAt: e.played_at > 0 ? e.played_at * 1000 : undefined,
+        }));
+        if (historyRows.length !== lastHistoryLenRef.current) {
+          lastHistoryLenRef.current = historyRows.length;
+          onHistoryRef.current(historyRows);
+        }
 
         const live =
+          data.entries
+            .filter((e) => e.is_playing)
+            .sort((a, b) => b.played_at - a.played_at)[0] ??
           data.now_playing ??
-          data.entries.find((e) => e.is_playing) ??
           data.entries[data.entries.length - 1];
         if (!live) return false;
 

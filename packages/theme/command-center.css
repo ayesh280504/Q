@@ -206,8 +206,32 @@
   grid-row: 1;
   background: #000;
   overflow-y: auto;
+  overflow-x: hidden;
   min-width: 0;
-  padding: 1.1rem 1.25rem;
+  padding: 1.1rem 1rem 1.75rem;
+}
+
+.command-settings .software-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.35rem;
+}
+
+.command-settings .software-tabs .tab {
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-main {
@@ -215,12 +239,14 @@
   grid-row: 1;
   background: #000;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 1.5rem 1.25rem 2rem;
+  justify-content: flex-start;
+  padding: 1.25rem 1.25rem 2rem;
   min-width: 0;
+  min-height: 0;
 }
 
 .command-rail {
@@ -228,8 +254,10 @@
   grid-row: 1;
   background: #000;
   overflow-y: auto;
+  overflow-x: hidden;
   min-width: 0;
-  padding: 1.1rem 1.25rem 1.5rem;
+  min-height: 0;
+  padding: 0;
 }
 
 .command-grid.settings-open .command-settings {
@@ -252,6 +280,15 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  padding: 1.1rem 1.25rem 1.5rem;
+  min-height: min-content;
+}
+
+.command-rail-inner .command-now-card {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
 }
 
 /* Settings panel inside command center */
@@ -277,25 +314,6 @@
 
 .command-settings-group-label--purple {
   color: var(--cmd-accent-mid);
-}
-
-.command-settings .software-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 0.35rem;
-}
-
-.command-settings .software-tabs .tab {
-  border: none;
-  border-radius: 0;
-  margin: 0;
-  padding: 0.5rem 0.35rem;
-  font-size: 0.58rem;
-  letter-spacing: 0.22em;
 }
 
 .command-settings .tier-tabs {

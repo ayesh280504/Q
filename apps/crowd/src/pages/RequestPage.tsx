@@ -8,6 +8,7 @@ import ShareBooth from "../components/ShareBooth";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
 import { useSessionLivePoll } from "../hooks/useSessionLivePoll";
+import { crowdTracksMatch } from "../lib/trackMatch";
 import type { CrowdRequest, DeclineReason, Session, TrackSearchHit } from "@q/shared";
 import { DECLINE_REASON_LABELS, sanitizeTrackArtist, sanitizeTrackTitle } from "@q/shared";
 
@@ -41,14 +42,16 @@ export default function RequestPage() {
     title: string;
     reason?: DeclineReason;
   } | null>(null);
+  const [acceptToast, setAcceptToast] = useState<string | null>(null);
   const [acceptCelebration, setAcceptCelebration] = useState<string | null>(null);
   const [pendingNote, setPendingNote] = useState("");
   const [showNoteField, setShowNoteField] = useState(false);
   const [manualTitle, setManualTitle] = useState("");
   const [manualArtist, setManualArtist] = useState("");
-  const trackedRequestsRef = useRef<Map<string, { title: string; status: "pending" | "accepted" | "declined" }>>(
-    new Map(),
-  );
+  const trackedRequestsRef = useRef<
+    Map<string, { title: string; artist: string; status: "pending" | "accepted" | "declined" }>
+  >(new Map());
+  const celebratedOnPlayRef = useRef<Set<string>>(new Set());
 
   const TOAST_MS = 5000;
 
@@ -57,6 +60,12 @@ export default function RequestPage() {
     const t = window.setTimeout(() => setDeclineToast(null), TOAST_MS);
     return () => clearTimeout(t);
   }, [declineToast]);
+
+  useEffect(() => {
+    if (!acceptToast) return;
+    const t = window.setTimeout(() => setAcceptToast(null), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [acceptToast]);
 
   useEffect(() => {
     if (!sent) return;
@@ -156,6 +165,7 @@ export default function RequestPage() {
       );
       trackedRequestsRef.current.set(res.request.id, {
         title: payload.title,
+        artist: payload.artist,
         status: "pending",
       });
       setQuery("");
@@ -199,7 +209,8 @@ export default function RequestPage() {
           if (res.status === "declined") {
             setDeclineToast({ title: info.title, reason: res.declineReason });
           } else if (res.status === "accepted") {
-            setAcceptCelebration(info.title);
+            trackedRequestsRef.current.set(requestId, { ...info, status: "accepted" });
+            setAcceptToast(`“${info.title}” accepted — we'll ping you when it's on!`);
           }
         } catch {
           /* network blip — try again next tick */
@@ -211,6 +222,50 @@ export default function RequestPage() {
       window.clearInterval(timer);
     };
   }, [code, session]);
+
+  /** Full-screen celebration when the DJ actually plays an accepted request. */
+  useEffect(() => {
+    if (!code || !sessionStillLive(session) || acceptCelebration) return;
+    let cancelled = false;
+
+    const pollNowPlaying = async () => {
+      const waiting = Array.from(trackedRequestsRef.current.entries()).filter(
+        ([id, info]) => info.status === "accepted" && !celebratedOnPlayRef.current.has(id),
+      );
+      if (waiting.length === 0) return;
+
+      try {
+        const res = await api<{
+          nowPlaying: { title: string; artist: string } | null;
+        }>(`/sessions/${code}/now-playing`);
+        if (cancelled || !res.nowPlaying) return;
+
+        for (const [requestId, info] of waiting) {
+          if (
+            crowdTracksMatch(
+              info.title,
+              info.artist,
+              res.nowPlaying.title,
+              res.nowPlaying.artist,
+            )
+          ) {
+            celebratedOnPlayRef.current.add(requestId);
+            setAcceptCelebration(info.title);
+            break;
+          }
+        }
+      } catch {
+        /* retry next tick */
+      }
+    };
+
+    void pollNowPlaying();
+    const id = window.setInterval(pollNowPlaying, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [code, session, acceptCelebration]);
 
   function onManual(e: FormEvent) {
     e.preventDefault();
@@ -427,6 +482,19 @@ export default function RequestPage() {
         </form>
       </section>
 
+      {acceptToast && (
+        <div className="toast toast-accepted" role="status">
+          <strong>{acceptToast}</strong>
+          <button
+            type="button"
+            className="toast-dismiss"
+            onClick={() => setAcceptToast(null)}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {acceptCelebration && (
         <AcceptCelebration
           trackTitle={acceptCelebration}

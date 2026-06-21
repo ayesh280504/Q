@@ -123,9 +123,13 @@ pub fn get_serato_sqlite_history() -> Option<SeratoSqliteHistory> {
         return None;
     }
 
+    // Multiple decks (or Serato lag) can leave more than one row with end_time = -1.
+    // Always prefer the newest start_time — otherwise UI shows the previous track
+    // until the DJ transitions away.
     let now_playing = entries
         .iter()
-        .find(|t| t.is_playing)
+        .filter(|t| t.is_playing)
+        .max_by_key(|t| t.played_at)
         .cloned()
         .or_else(|| entries.last().cloned());
 

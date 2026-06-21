@@ -593,6 +593,40 @@ app.get("/sessions/:code/status", (c) => {
   });
 });
 
+/** Public now-playing for crowd celebration (desktop pushes via live-status). */
+app.get("/sessions/:code/now-playing", (c) => {
+  const code = c.req.param("code").trim().toUpperCase();
+  const session = db
+    .prepare(`SELECT id, is_live FROM sessions WHERE code = ?`)
+    .get(code) as { id: string; is_live: number | null } | undefined;
+  if (!session) return c.json({ error: "Session not found" }, 404);
+  if ((session.is_live ?? 1) === 0) return c.json({ nowPlaying: null });
+
+  const row = db
+    .prepare(
+      `SELECT title, artist, bpm, key, updated_at FROM session_live_status WHERE session_id = ?`,
+    )
+    .get(session.id) as
+    | {
+        title: string;
+        artist: string;
+        bpm: number | null;
+        key: string | null;
+        updated_at: string;
+      }
+    | undefined;
+  if (!row?.title?.trim()) return c.json({ nowPlaying: null });
+  return c.json({
+    nowPlaying: {
+      title: row.title,
+      artist: row.artist,
+      bpm: row.bpm ?? undefined,
+      key: row.key ?? undefined,
+      updatedAt: row.updated_at,
+    },
+  });
+});
+
 /** Live request wall for the crowd — pending + accepted, no guest ids. */
 app.get("/sessions/:code/wall", (c) => {
   const code = c.req.param("code").trim().toUpperCase();
