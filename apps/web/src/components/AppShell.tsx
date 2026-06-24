@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import SiteNav from "./SiteNav";
 import QFooter from "./QFooter";
+import FollowingLiveBanner from "./FollowingLiveBanner";
 
 type AppShellProps = {
   children: ReactNode;
@@ -36,6 +37,7 @@ export default function AppShell({
   return (
     <div className={["q-app", className].filter(Boolean).join(" ")}>
       <SiteNav variant="marketing" />
+      <FollowingLiveBanner />
       <main className={mainClasses}>{children}</main>
       {footer ? <QFooter /> : null}
     </div>

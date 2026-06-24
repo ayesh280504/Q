@@ -71,6 +71,47 @@ Most guests at real gigs use **iPhone on LTE**. Safari cannot scan BLE beacons, 
 
 ---
 
+## Networking & proximity (architecture)
+
+How guests reach the booth without venue Wi‑Fi — and what we **do not** build.
+
+### What runs where
+
+| Layer | Transport | Purpose |
+|-------|-----------|---------|
+| **BLE beacon** (desktop) | Bluetooth LE advertise | Broadcast session code `Q-XXXXXX` for discovery only |
+| **Crowd requests** | Guest LTE → Render API → DJ sync | Search, submit, status, ratings — never over BLE |
+| **QR / deep link** | HTTPS | Universal fallback: `/r/CODE` on crowd host |
+| **DJ booth sync** | Wi‑Fi / hotspot / LTE | Pull/push request queue + library metadata index |
+
+BLE carries **no track data and no HTTP**. It only helps the phone learn the 6-character session code when the guest is near the laptop.
+
+### Guest join paths (by device)
+
+| Device | Primary | Fallback |
+|--------|---------|----------|
+| **iPhone** | QR scan | **Q Crowd iOS app** BLE scan → manual code |
+| **Android** | QR scan | Q Crowd app BLE → Chrome `/nearby` (Web Bluetooth) → manual code |
+| **Any phone** | QR scan | Type 6-char code on crowd page |
+
+Safari on iPhone **cannot** use Web Bluetooth — proximity join requires the native Q Crowd app.
+
+### Explicitly deferred (not v0.2.x)
+
+- **GPS geofencing** — unreliable indoors; QR + BLE proximity is enough for MVP.
+- **DJ hotspot / LAN guest mode** — guests should use LTE + cloud; LAN-only breaks real venues.
+- **BLE mesh / phone-as-repeater** — unnecessary complexity; desktop beacon + QR covers range.
+- **Guest account required mid-set** — crowd requests stay anonymous until post-gig rating optional signup.
+
+### Production requirements
+
+- **Render persistent disk** for `Q_DATA_DIR` — SQLite holds profiles (social links, tip URLs), sessions, ratings. Ephemeral disk wipes data on redeploy.
+- **`Q_CROWD_URL`** on API must match the Vercel crowd project — QR and follow-live links depend on it.
+
+See [PRODUCTION-DEPLOY.md](./PRODUCTION-DEPLOY.md) and [TESTFLIGHT-iOS.md](./TESTFLIGHT-iOS.md).
+
+---
+
 ## Competitive moat
 
 ### vs NoSongRequests (NSR) and wedding request SaaS
@@ -175,7 +216,8 @@ Most guests at real gigs use **iPhone on LTE**. Safari cannot scan BLE beacons, 
 ### Community web
 - Accounts (Supabase), profiles, studio (mix links)
 - Feed, likes, comments, follows
-- Top-rated DJs, settings (tip URL, socials)
+- Top-rated DJs, settings (tip URL, socials — persisted + local draft backup)
+- **Followed DJ live banner** + optional browser alerts
 - Marketing pages: features, for-djs, for-crowd, integrations
 
 ### API
@@ -186,7 +228,7 @@ Most guests at real gigs use **iPhone on LTE**. Safari cannot scan BLE beacons, 
 ### Not in v0.2.1
 - Native Stripe checkout (tip URL only)
 - Traktor / Virtual DJ / djay adapters
-- Push when followed DJ goes live
+- Mobile push notifications (web banner + optional browser alerts only)
 - Full audio hosting for mixes
 
 ---

@@ -89,7 +89,7 @@ Render should auto-deploy when `main` updates (if the service is linked to GitHu
 | `SUPABASE_URL` | `https://jawyjjgwxksnfedpnxnr.supabase.co` |
 | `Q_CROWD_URL` | `https://q-crowd.vercel.app` (must match crowd Vercel project) |
 | `Q_WEB_URL` | `https://q-web-liart.vercel.app` |
-| `Q_DATA_DIR` | Persistent disk path if you use one, or default |
+| `Q_DATA_DIR` | **Persistent disk mount path** — see below (required for profiles, social links, ratings) |
 | `Q_GITHUB_REPO` | `ayesh280504/Q` (desktop auto-updater) |
 | `Q_GITHUB_TOKEN` | GitHub PAT with `repo` — only if the repo is private |
 
@@ -105,6 +105,24 @@ Render should auto-deploy when `main` updates (if the service is linked to GitHu
 ```text
 GET https://q-api-hp4b.onrender.com/health
 ```
+
+### Persistent disk (required for DJ profiles)
+
+Without a persistent disk, Render **wipes the SQLite database on every deploy**. Symptoms:
+
+- Social links and Venmo/tip URLs disappear after you sign out and back in
+- Gig ratings and follow relationships vanish
+- Sessions from past gigs are lost
+
+**Fix on Render:**
+
+1. Dashboard → your API service → **Disks** → Add disk (e.g. 1 GB), mount path `/var/data`
+2. Set env var: `Q_DATA_DIR=/var/data`
+3. Redeploy once — the API creates `q.db` on the mounted volume
+
+Local dev uses `./data/q.db` by default (no extra config).
+
+**Verify:**
 
 Updater proxy:
 
@@ -339,6 +357,8 @@ flowchart LR
 ## Related docs
 
 - [PRD.md](./PRD.md) — product strategy, moat, platform priority  
+- [TESTFLIGHT-iOS.md](./TESTFLIGHT-iOS.md) — Q Crowd iOS TestFlight  
+- [MAC-BLE-VERIFY.md](./MAC-BLE-VERIFY.md) — macOS DJ beacon field test  
 - [RELEASING.md](./RELEASING.md) — signing keys + updater troubleshooting  
 - [SUPABASE.md](./SUPABASE.md) — auth redirects  
 - [PRE-DEPLOY-CHECKLIST.md](./PRE-DEPLOY-CHECKLIST.md) — local testing before ship  

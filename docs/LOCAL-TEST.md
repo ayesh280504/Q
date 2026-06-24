@@ -125,6 +125,7 @@ Do this once before sending builds to friends.
 | Spotify search empty | Add Spotify keys to `.env`, restart API. |
 | Drag doesn't work | Must use Tauri desktop app; track needs `localPath` from library import. |
 | Sign-in fails | Check `SUPABASE_URL` / anon key in `.env` and Supabase dashboard. |
+| API crashes on start (`better_sqlite3.node` / NODE_MODULE_VERSION) | Node version changed — run `npm rebuild better-sqlite3` from repo root, restart `dev:stack`. |
 
 ### Windows firewall
 
@@ -137,6 +138,85 @@ ipconfig
 ```
 
 Look for **IPv4 Address** under your Wi‑Fi adapter (e.g. `192.168.0.155`).
+
+---
+
+## 6. Feature checklist (test everything)
+
+Use this when you return — tick each box after verifying locally. **Desktop = Tauri app** unless noted.
+
+### Stack health
+
+| # | Feature | How to test | Pass? |
+|---|---------|-------------|-------|
+| 1 | API up | `npm run dev:check` → ✓ API | ☐ |
+| 2 | Crowd + web up | `dev:check` → ✓ Crowd, ✓ Web | ☐ |
+
+### DJ booth (desktop)
+
+| # | Feature | How to test | Pass? |
+|---|---------|-------------|-------|
+| 3 | Sign in | Supabase login if prompted | ☐ |
+| 4 | Start gig | Code + QR appear; BLE pill shows | ☐ |
+| 5 | Import library | Serato crates or Rekordbox XML | ☐ |
+| 6 | Sync now | Crowd search finds imported tracks | ☐ |
+| 7 | Request alert | Phone submits → sound/notification on desktop | ☐ |
+| 8 | Accept / decline | Crowd status updates; decline reasons work | ☐ |
+| 9 | Queue lifecycle | Accepted → queue; played → leaves queue | ☐ |
+| 10 | Serato now-playing | Play in Serato → desktop updates (SQLite path) | ☐ |
+| 11 | Mix Coach | Suggestions appear; drag suggestion to deck | ☐ |
+| 12 | Drag handle (active) | ⠿ on request with local path → drag to Serato/RB | ☐ |
+| 13 | Drag hint (muted) | ⠿ gray + tooltip when no local path / no import | ☐ |
+| 14 | Public wall / shoutouts | Toggles affect crowd page | ☐ |
+| 15 | End gig | Session ends; crowd sees rating screen | ☐ |
+| 16 | Offline sync | Airplane mode → accept locally → sync when back | ☐ |
+
+### Crowd (phone or second browser)
+
+| # | Feature | How to test | Pass? |
+|---|---------|-------------|-------|
+| 17 | QR join | Scan desktop QR → `/r/CODE` loads | ☐ |
+| 18 | Library search | Find track from DJ import | ☐ |
+| 19 | Spotify fallback | Search track not in crate (needs Spotify keys) | ☐ |
+| 20 | Manual request | Title + artist when search misses | ☐ |
+| 21 | Play celebration | When DJ plays your accepted track → full-screen animation | ☐ |
+| 22 | Post-gig rating | 1–5 stars after end gig | ☐ |
+| 23 | Tip + socials | DJ tip URL + Instagram etc. on end screen | ☐ |
+| 24 | Peer QR | Guest share button → friend scans same booth | ☐ |
+| 25 | `/dj/:handle` | Permanent DJ link works | ☐ |
+
+### Community web (localhost:5174)
+
+| # | Feature | How to test | Pass? |
+|---|---------|-------------|-------|
+| 26 | Sign up / sign in | Supabase auth → studio | ☐ |
+| 27 | Settings — socials | Save Instagram, Venmo, etc. | ☐ |
+| 28 | Settings persist | Sign out → sign in → socials still there | ☐ |
+| 29 | Public profile | `/dj/yourhandle` shows bio + social icons | ☐ |
+| 30 | Follow DJ | Follow from profile; feed updates | ☐ |
+| 31 | Live banner | Follow a DJ → they start gig → green banner on web | ☐ |
+| 32 | Browser alerts | Click “Enable alerts” on banner → permission → notify | ☐ |
+| 33 | Gig rating on profile | After crowd rates, score shows on DJ profile | ☐ |
+| 34 | Top-rated DJs | `/community` shows rated DJs | ☐ |
+| 35 | Studio / mixes | Add mix link; appears on profile | ☐ |
+
+### BLE & mobile (optional — needs device)
+
+| # | Feature | How to test | Pass? |
+|---|---------|-------------|-------|
+| 36 | Desktop BLE beacon | BLE pill on while gig live (Windows/Mac) | ☐ |
+| 37 | Crowd iOS app | `npm run dev:crowd-mobile` → Find booth nearby | ☐ |
+| 38 | Crowd web `/nearby` | Android Chrome only — scan for booth | ☐ |
+
+### Production smoke (after deploy)
+
+| # | Feature | How to test | Pass? |
+|---|---------|-------------|-------|
+| 39 | Prod health | `npm run check:prod` | ☐ |
+| 40 | LTE request | Phone on cellular → scan prod QR → request | ☐ |
+| 41 | Render persistence | Socials survive after API redeploy (needs `Q_DATA_DIR` disk) | ☐ |
+
+**What I can’t test for you:** Serato drag-to-deck, BLE on real phones, Supabase login (needs your keys), and anything requiring your DJ library paths. Run rows 3–16 and 17–25 yourself when you’re back — ~30–45 minutes for the full list.
 
 ---
 

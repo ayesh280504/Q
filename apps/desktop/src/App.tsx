@@ -23,6 +23,7 @@ import QLogo from "./components/QLogo";
 import MixSuggestionsPanel from "./components/MixSuggestionsPanel";
 import CommandNowPlaying from "./components/CommandNowPlaying";
 import RequestDragHandle from "./components/RequestDragHandle";
+import DragUnavailableHint from "./components/DragUnavailableHint";
 import NowPlayingBar from "./components/NowPlayingBar";
 import QrSticker from "./components/QrSticker";
 import WelcomeTour from "./components/WelcomeTour";
@@ -2150,7 +2151,11 @@ export default function App() {
                     </div>
                     {(() => {
                       const lp = queueItemLocalPath(item);
-                      return lp ? <RequestDragHandle localPath={lp} /> : null;
+                      if (lp) return <RequestDragHandle localPath={lp} />;
+                      if (gig && importIndexRef.current.size === 0) {
+                        return <DragUnavailableHint reason="no-import" />;
+                      }
+                      return <DragUnavailableHint reason="not-in-crate" />;
                     })()}
                     <button
                       type="button"
@@ -2235,9 +2240,14 @@ export default function App() {
                       artist: r.artist,
                     });
                     const lp = local?.localPath;
-                    return lp ? (
-                      <RequestDragHandle localPath={lp} />
-                    ) : null;
+                    if (lp) return <RequestDragHandle localPath={lp} />;
+                    if (importIndexRef.current.size === 0) {
+                      return <DragUnavailableHint reason="no-import" />;
+                    }
+                    if (r.inStock || r.matchedTrackId) {
+                      return <DragUnavailableHint reason="not-in-crate" />;
+                    }
+                    return null;
                   })()}
                   <button
                     type="button"

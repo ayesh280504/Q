@@ -13,6 +13,7 @@ import {
 import { db } from "./db.js";
 import { ensureEngagementTables, mixEngagementStats } from "./engagement.js";
 import { parseSocialLinks, serializeSocialLinks } from "./social.js";
+import { coalesceTipUrl, mergeSocialLinksPayload } from "./profileMerge.js";
 import { verifySupabaseAccessToken } from "./supabase.js";
 
 ensureEngagementTables();
@@ -138,17 +139,11 @@ community.patch("/auth/me", async (c) => {
   };
   const bio = body.bio !== undefined ? body.bio.trim() || null : user.bio;
   const avatarUrl = body.avatarUrl !== undefined ? body.avatarUrl.trim() || null : user.avatar_url;
-  const socialLinks =
-    body.socialLinks !== undefined
-      ? serializeSocialLinks(body.socialLinks)
-      : user.social_links;
-  const tipUrl =
-    body.tipUrl !== undefined
-      ? body.tipUrl.trim().slice(0, 512) || null
-      : user.tip_url;
+  const socialLinks = mergeSocialLinksPayload(user.social_links, body.socialLinks);
+  const tipUrl = coalesceTipUrl(user.tip_url, body.tipUrl);
 
   db.prepare(
-    `UPDATE users SET display_name = handle, bio = ?, avatar_url = ?, social_links = ?, tip_url = ? WHERE id = ?`,
+    `UPDATE users SET bio = ?, avatar_url = ?, social_links = ?, tip_url = ? WHERE id = ?`,
   ).run(bio, avatarUrl, socialLinks, tipUrl, user.id);
 
   const updated = db.prepare(`SELECT * FROM users WHERE id = ?`).get(user.id);
@@ -494,6 +489,40 @@ community.get("/auth/follow/:handle", async (c) => {
   return c.json({ following: Boolean(row) });
 });
 
+/** Followed DJs with an active live session — for "your DJ is live" banners. */
+community.get("/auth/following/live", async (c) => {
+  const user = await resolveAccount(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+  const rows = db
+    .prepare(
+      `SELECT u.handle, u.display_name, s.code, s.display_name AS session_display_name
+       FROM follows f
+       INNER JOIN users u ON u.id = f.following_id
+       INNER JOIN sessions s ON s.dj_user_id = u.id AND s.is_live = 1 AND s.ended_at IS NULL
+       WHERE f.follower_id = ?
+       ORDER BY s.created_at DESC`,
+    )
+    .all(user.id) as Array<{
+    handle: string;
+    display_name: string;
+    code: string;
+    session_display_name: string | null;
+  }>;
+
+  const crowdBase = process.env.Q_CROWD_URL?.replace(/\/$/, "") || "http://localhost:5173";
+
+  return c.json({
+    live: rows.map((r) => ({
+      handle: r.handle,
+      displayName: r.display_name,
+      sessionCode: r.code,
+      sessionDisplayName: r.session_display_name?.trim() || r.display_name,
+      crowdUrl: `${crowdBase}/r/${r.code}`,
+    })),
+  });
+});
+
 community.get("/auth/mixes", async (c) => {
   const user = await resolveAccount(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
@@ -604,7 +633,7 @@ community.get("/djs/:handle/active-gig", (c) => {
   const session = db
     .prepare(
       `SELECT code, display_name, is_live FROM sessions
-       WHERE dj_user_id = ? AND is_live = 1
+       WHERE dj_user_id = ? AND is_live = 1 AND ended_at IS NULL
        ORDER BY created_at DESC LIMIT 1`,
     )
     .get(user.id) as { code: string; display_name: string | null; is_live: number } | undefined;

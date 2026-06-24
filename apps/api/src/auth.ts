@@ -202,9 +202,19 @@ export function syncSupabaseUser(input: {
       .get(input.supabaseId, byEmail.id);
     if (conflict) return { error: "Account conflict" };
     const token = accountToken();
+    const existingHandle = normalizeHandle(byEmail.handle);
+    const finalHandle = existingHandle ?? handle;
+    const finalDisplay = existingHandle ? byEmail.display_name : displayName;
     db.prepare(
       `UPDATE users SET supabase_id = ?, handle = ?, display_name = ?, avatar_url = COALESCE(?, avatar_url), account_token = ? WHERE id = ?`,
-    ).run(input.supabaseId, handle, displayName, input.avatarUrl ?? null, token, byEmail.id);
+    ).run(
+      input.supabaseId,
+      finalHandle,
+      finalDisplay,
+      input.avatarUrl ?? null,
+      token,
+      byEmail.id,
+    );
     const updated = db.prepare(`SELECT * FROM users WHERE id = ?`).get(byEmail.id) as UserRow;
     return { user: rowToProfile(updated), accountToken: token };
   }

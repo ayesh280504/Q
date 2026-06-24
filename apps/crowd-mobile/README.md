@@ -29,10 +29,19 @@ Fallback: enter 6-char code or scan QR (web crowd).
 
 When you're on a booth in the app, tap the **QR button** (bottom-right). Your friend scans it with their camera — same booth, no trip to the DJ laptop. They can request in the browser or install the app later.
 
-## App Store
+## App Store / TestFlight
 
 - Bundle ID: `app.q.crowd`
 - Uses hosted crowd at `EXPO_PUBLIC_Q_CROWD_URL` (production: `https://q-crowd.vercel.app`)
 - Bluetooth usage strings in `app.json`
+- EAS config: `eas.json` (profiles: `development`, `preview`, `production`)
 
-Build with EAS when ready: `eas build --platform ios`
+Full checklist: [docs/TESTFLIGHT-iOS.md](../docs/TESTFLIGHT-iOS.md)
+
+```bash
+cd apps/crowd-mobile
+npx eas build --platform ios --profile production
+npx eas submit --platform ios --profile production --latest
+```
+
+Mac DJ beacon verification: [docs/MAC-BLE-VERIFY.md](../docs/MAC-BLE-VERIFY.md)

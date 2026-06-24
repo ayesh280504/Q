@@ -195,6 +195,18 @@ export function fetchFollowStatus(handle: string) {
   });
 }
 
+export type LiveFollowedDj = {
+  handle: string;
+  displayName: string;
+  sessionCode: string;
+  sessionDisplayName: string;
+  crowdUrl: string;
+};
+
+export function fetchFollowingLive() {
+  return api<{ live: LiveFollowedDj[] }>("/auth/following/live", { auth: true });
+}
+
 export function fetchDjProfile(handle: string) {
   return api<{ profile: DjProfilePublic }>(`/djs/${encodeURIComponent(handle)}`);
 }
