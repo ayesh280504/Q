@@ -199,6 +199,7 @@ type SessionRow = {
   id: string;
   code: string;
   name: string;
+  dj_token: string;
   created_at: string;
   library_synced_at: string | null;
   display_name?: string | null;
@@ -509,6 +510,90 @@ app.post("/sessions", async (c) => {
       : undefined,
   };
 
+  return c.json(response, 201);
+});
+
+/** Publish a session that was created offline on the booth (phone ↔ laptop LAN). */
+app.post("/sessions/register-local", async (c) => {
+  const accountUser = await resolveAccount(c);
+  if (!accountUser) return c.json({ error: "Unauthorized" }, 401);
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    sessionId?: string;
+    code?: string;
+    djToken?: string;
+    name?: string;
+    displayName?: string;
+    maxPendingRequests?: number;
+    maxRequestsPerGuest?: number;
+    librarySource?: unknown;
+    publicWall?: boolean;
+    allowShoutouts?: boolean;
+  };
+
+  const sessionId = body.sessionId?.trim();
+  const code = body.code?.trim().toUpperCase();
+  const djToken = body.djToken?.trim();
+  if (!sessionId || !code || !djToken) {
+    return c.json({ error: "sessionId, code, and djToken required" }, 400);
+  }
+
+  const existing = db
+    .prepare(`SELECT * FROM sessions WHERE id = ?`)
+    .get(sessionId) as SessionRow | undefined;
+  if (existing) {
+    const response: CreateSessionResponse = {
+      session: rowToSession(existing),
+      djToken: existing.dj_token,
+      crowdUrl: `${crowdBaseUrl}/r/${existing.code}`,
+      profileUrl: `${webBaseUrl}/dj/${accountUser.handle}`,
+      crowdProfileUrl: `${crowdBaseUrl}/dj/${accountUser.handle}`,
+    };
+    return c.json(response);
+  }
+
+  const codeTaken = db
+    .prepare(`SELECT id FROM sessions WHERE code = ?`)
+    .get(code) as { id: string } | undefined;
+  if (codeTaken) return c.json({ error: "Session code already in use" }, 409);
+
+  const now = new Date().toISOString();
+  const name = body.name?.trim() || "Tonight";
+  const displayName = body.displayName?.trim() || accountUser.display_name || name;
+  const maxPending = clampLimit(body.maxPendingRequests ?? 20, 1, 100);
+  const maxPerGuest = clampLimit(body.maxRequestsPerGuest ?? 3, 1, 20);
+  const librarySource = parseLibrarySource(body.librarySource);
+  const streamingSearch = streamingFlagFor(librarySource);
+  const publicWall = body.publicWall ? 1 : 0;
+  const allowShoutouts = body.allowShoutouts === false ? 0 : 1;
+
+  db.prepare(
+    `INSERT INTO sessions (id, code, name, display_name, dj_token, created_at, max_pending_requests, max_requests_per_guest, dj_user_id, streaming_search, library_source, public_wall, allow_shoutouts)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    sessionId,
+    code,
+    name,
+    displayName,
+    djToken,
+    now,
+    maxPending,
+    maxPerGuest,
+    accountUser.id,
+    streamingSearch,
+    librarySource ?? null,
+    publicWall,
+    allowShoutouts,
+  );
+
+  const row = db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(sessionId) as SessionRow;
+  const response: CreateSessionResponse = {
+    session: rowToSession(row),
+    djToken,
+    crowdUrl: `${crowdBaseUrl}/r/${code}`,
+    profileUrl: `${webBaseUrl}/dj/${accountUser.handle}`,
+    crowdProfileUrl: `${crowdBaseUrl}/dj/${accountUser.handle}`,
+  };
   return c.json(response, 201);
 });
 

@@ -4,6 +4,13 @@ import * as SecureStore from "expo-secure-store";
 const TOKEN_KEY = "q-account-token";
 const GIG_KEY = "q-booth-gig";
 const LIBRARY_KEY = "q-booth-library-source";
+const DESKTOP_PAIRING_KEY = "q-desktop-pairing";
+
+export type DesktopPairing = {
+  host: string;
+  port: number;
+  token: string;
+};
 
 export type BoothGig = {
   sessionId: string;
@@ -65,4 +72,25 @@ export async function loadGig(): Promise<BoothGig | null> {
 export async function saveGig(gig: BoothGig | null) {
   if (gig) await SecureStore.setItemAsync(GIG_KEY, JSON.stringify(gig));
   else await SecureStore.deleteItemAsync(GIG_KEY);
+}
+
+export async function loadDesktopPairing(): Promise<DesktopPairing | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(DESKTOP_PAIRING_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<DesktopPairing>;
+    if (!parsed.host?.trim() || !parsed.token?.trim()) return null;
+    return {
+      host: parsed.host.trim(),
+      port: parsed.port ?? 8765,
+      token: parsed.token.trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveDesktopPairing(pairing: DesktopPairing | null) {
+  if (pairing) await SecureStore.setItemAsync(DESKTOP_PAIRING_KEY, JSON.stringify(pairing));
+  else await SecureStore.deleteItemAsync(DESKTOP_PAIRING_KEY);
 }

@@ -80,6 +80,29 @@ export function createSession(
   });
 }
 
+/** Push an offline LAN-created session to the cloud when back online. */
+export function registerLocalSession(
+  payload: {
+    sessionId: string;
+    code: string;
+    djToken: string;
+    name: string;
+    displayName: string;
+    maxPendingRequests: number;
+    maxRequestsPerGuest: number;
+    librarySource?: "local" | "spotify" | "both";
+    publicWall?: boolean;
+    allowShoutouts?: boolean;
+  },
+  accountToken?: string | null,
+) {
+  return api<CreateSessionResponse>("/sessions/register-local", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    accountToken: accountToken ?? undefined,
+  });
+}
+
 export function updateSessionSettings(
   sessionId: string,
   token: string,

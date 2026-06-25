@@ -1,6 +1,6 @@
 import type { DjProfile, LibrarySource } from "@q/shared";
 import { StatusBar } from "expo-status-bar";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BoothAmbient from "../components/BoothAmbient";
 import BoothButton from "../components/BoothButton";
@@ -13,6 +13,10 @@ import { colors, fonts, spacing, type } from "../theme";
 type Props = {
   profile: DjProfile;
   librarySource: LibrarySource | null;
+  desktopHost: string;
+  desktopToken: string;
+  onDesktopHost: (v: string) => void;
+  onDesktopToken: (v: string) => void;
   error: string | null;
   busy: boolean;
   onLibrarySource: (s: LibrarySource) => void;
@@ -23,6 +27,10 @@ type Props = {
 export default function StartGigScreen({
   profile,
   librarySource,
+  desktopHost,
+  desktopToken,
+  onDesktopHost,
+  onDesktopToken,
   error,
   busy,
   onLibrarySource,
@@ -45,8 +53,30 @@ export default function StartGigScreen({
           <Text style={styles.headlinePrimary}>Start the</Text>
           <Text style={styles.headlineAccent}>set.</Text>
           <Text style={styles.sub}>
-            Unlocks your crowd QR. Laptop can stay on LAN — phone polls for requests while you mix.
+            Link your laptop once (same Wi‑Fi or hotspot). Start here — the booth app on your Mac
+            picks it up, even without venue internet.
           </Text>
+          <View style={styles.linkCard}>
+            <Text style={styles.qrLabel}>Laptop link</Text>
+            <TextInput
+              style={styles.input}
+              value={desktopHost}
+              onChangeText={onDesktopHost}
+              placeholder="Laptop IP (from desktop Settings)"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.input}
+              value={desktopToken}
+              onChangeText={onDesktopToken}
+              placeholder="Token (from desktop Settings)"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+          </View>
           <View style={styles.qrCard}>
             <Text style={styles.qrLabel}>Permanent crowd link</Text>
             <Text style={styles.qrUrl} selectable>
@@ -115,6 +145,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 4,
+  },
+  linkCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: spacing.radiusLg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+    gap: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: colors.text,
+    fontFamily: fonts.mono,
+    fontSize: type.caption,
   },
   qrLabel: {
     fontFamily: fonts.mono,

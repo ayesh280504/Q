@@ -5,6 +5,7 @@ mod prolink;
 mod sentinel;
 mod ble_beacon;
 mod serato_sqlite;
+mod lan_handoff;
 
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
@@ -383,6 +384,8 @@ pub fn run() {
             ble_beacon::ble_beacon_status,
             prolink::prolink_request_status,
             sentinel::detect_dj_software_running,
+            lan_handoff::start_lan_handoff,
+            lan_handoff::get_lan_pairing_info,
         ]);
     prolink::install(builder)
         .run(tauri::generate_context!())

@@ -4,12 +4,14 @@ import type {
   CreateSessionResponse,
   DeclineReason,
   DjProfile,
+  LanPairingInfo,
   PlanTier,
   TrackRecord,
   TransitionSuggestion,
 } from "@q/shared";
 import {
   createSession,
+  registerLocalSession,
   syncLibrary,
   syncPlayedTracks,
   updateRequest,
@@ -62,6 +64,12 @@ import {
   classifyBleError,
   type BleBeaconState,
 } from "./lib/bleBeacon";
+import { initLanHandoff, subscribeGigHandoff } from "./lib/lanHandoff";
+import {
+  createOfflineGigState,
+  handoffToGigState,
+  type BoothGigState,
+} from "./lib/gigHandoff";
 import {
   enterOverlayMode,
   exitOverlayMode,
@@ -190,17 +198,7 @@ function saveDockMode(dock: boolean) {
   }
 }
 
-interface GigState {
-  sessionId: string;
-  code: string;
-  name: string;
-  displayName: string;
-  djToken: string;
-  crowdUrl: string;
-  trackCount: number;
-  maxPendingRequests: number;
-  maxRequestsPerGuest: number;
-}
+interface GigState extends BoothGigState {}
 
 function loadDjDisplayName(): string {
   try {
@@ -234,6 +232,7 @@ function loadGig(): GigState | null {
       trackCount: parsed.trackCount ?? 0,
       maxPendingRequests: parsed.maxPendingRequests ?? 20,
       maxRequestsPerGuest: parsed.maxRequestsPerGuest ?? 3,
+      localOnly: parsed.localOnly ?? false,
     };
   } catch {
     return null;
@@ -325,6 +324,7 @@ export default function App() {
   }
   const [account, setAccount] = useState<DjProfile | null>(null);
   const [lanIpv4, setLanIpv4] = useState<string | null>(null);
+  const [lanPairing, setLanPairing] = useState<LanPairingInfo | null>(null);
   const [spotifyCrowdSearch, setSpotifyCrowdSearch] = useState(false);
   const [requestPulse, setRequestPulse] = useState(false);
   const [publicWall, setPublicWall] = useState(loadPublicWallPref);
@@ -645,6 +645,74 @@ export default function App() {
       });
   }, []);
 
+  const adoptGigFromHandoff = useCallback(
+    (payload: import("@q/shared").LanGigHandoff, fromPhone = true) => {
+      const next = handoffToGigState(payload, gig?.trackCount ?? 0);
+      setGig(next);
+      saveGig(next);
+      setRequests([]);
+      setLastSync(null);
+      setAllowedOnce(new Set());
+      resetQueueCrate(next.sessionId);
+      setStartGigPromptOpen(false);
+      setMessage(
+        fromPhone
+          ? `Gig synced from your phone — ${next.code}.${next.localOnly ? " Crowd LTE works after cloud sync." : ""}`
+          : `Gig started — ${next.code}.`,
+      );
+    },
+    [gig?.trackCount],
+  );
+
+  const publishLocalGigToCloud = useCallback(
+    async (active: GigState) => {
+      if (!active.localOnly || !navigator.onLine) return;
+      const token = getAccountToken();
+      if (!token) return;
+      try {
+        await registerLocalSession(
+          {
+            sessionId: active.sessionId,
+            code: active.code,
+            djToken: active.djToken,
+            name: active.name,
+            displayName: active.displayName,
+            maxPendingRequests: active.maxPendingRequests,
+            maxRequestsPerGuest: active.maxRequestsPerGuest,
+            librarySource: librarySource ?? undefined,
+            publicWall,
+            allowShoutouts,
+          },
+          token,
+        );
+        const next = { ...active, localOnly: false };
+        setGig(next);
+        saveGig(next);
+        setMessage(`Cloud live — guests on LTE can use ${active.code}.`);
+      } catch {
+        /* retry when still online */
+      }
+    },
+    [librarySource, publicWall, allowShoutouts],
+  );
+
+  useEffect(() => {
+    const crowdBase = (
+      import.meta.env.VITE_Q_CROWD_LAN_URL?.replace(/\/r\/.*$/i, "") ||
+      import.meta.env.VITE_Q_CROWD_URL ||
+      "http://localhost:5173"
+    ).replace(/\/$/, "");
+    void initLanHandoff(crowdBase).then((info) => {
+      if (info) setLanPairing(info);
+    });
+    return subscribeGigHandoff((payload) => adoptGigFromHandoff(payload, true));
+  }, [adoptGigFromHandoff]);
+
+  useEffect(() => {
+    if (!gig?.localOnly || !online) return;
+    void publishLocalGigToCloud(gig);
+  }, [gig, online, publishLocalGigToCloud]);
+
   /** BLE proximity beacon — advertises Q-CODE while gig is live (Windows). */
   useEffect(() => {
     if (!gig?.code) {
@@ -941,16 +1009,20 @@ export default function App() {
   }
 
   async function startGig() {
-    if (!navigator.onLine) {
-      setMessage(
-        "You need internet once to start a gig (creates your session & QR). After that, accept/decline and library import work offline — sync when you have signal.",
-      );
-      return;
-    }
     setBusy(true);
     setMessage(null);
     const display = djDisplayName.trim() || "DJ";
     saveDjDisplayName(display);
+    if (!navigator.onLine) {
+      const offline = createOfflineGigState({
+        displayName: display,
+        maxPending,
+        maxPerGuest,
+      });
+      adoptGigFromHandoff({ ...offline, localOnly: true }, false);
+      setBusy(false);
+      return;
+    }
     try {
       const res: CreateSessionResponse = await createSession(
         {
@@ -1647,6 +1719,24 @@ export default function App() {
             Pro
           </button>
         </div>
+
+        {!dockMode && lanPairing && (
+          <>
+            <p className="command-settings-group-label command-settings-group-label--cyan">
+              // Phone link
+            </p>
+            <p className="muted sync-hint" style={{ fontSize: "0.78rem", lineHeight: 1.45 }}>
+              Start the gig on <strong>Q Booth mobile</strong> — it appears here on the same Wi‑Fi
+              or laptop hotspot. No venue internet required.
+            </p>
+            <p className="muted sync-hint" style={{ fontSize: "0.78rem" }}>
+              IP: <strong>{lanPairing.ip ?? "enable Wi‑Fi"}</strong> · Port:{" "}
+              <strong>{lanPairing.port}</strong>
+              <br />
+              Token: <strong>{lanPairing.token}</strong>
+            </p>
+          </>
+        )}
 
         {!gig ? (
           <div className="gig-setup">

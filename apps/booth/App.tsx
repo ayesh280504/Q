@@ -20,13 +20,21 @@ import SignInScreen from "./src/screens/SignInScreen";
 import StartGigScreen from "./src/screens/StartGigScreen";
 import {
   loadAccountToken,
+  loadDesktopPairing,
   loadGig,
   loadLibrarySourcePref,
   saveAccountToken,
+  saveDesktopPairing,
   saveGig,
   saveLibrarySourcePref,
   type BoothGig,
+  type DesktopPairing,
 } from "./src/storage";
+import {
+  probeDesktop,
+  pushGigHandoff,
+  requestDesktopStartGig,
+} from "./src/lanHandoff";
 import { colors, fonts } from "./src/theme";
 
 type Screen = "loading" | "signin" | "home" | "live";
@@ -48,6 +56,17 @@ export default function App() {
   const [live, setLive] = useState<SessionLiveStatus | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [suggestions, setSuggestions] = useState<TransitionSuggestion[]>([]);
+  const [desktopHost, setDesktopHost] = useState("");
+  const [desktopToken, setDesktopToken] = useState("");
+
+  useEffect(() => {
+    void loadDesktopPairing().then((p) => {
+      if (p) {
+        setDesktopHost(p.host);
+        setDesktopToken(p.token);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -118,9 +137,50 @@ export default function App() {
     setError(null);
     try {
       await saveLibrarySourcePref(librarySource);
+      const displayName = profile.displayName;
+      const crowdProfile = crowdProfileUrl(profile.handle);
+
+      let pairing: DesktopPairing | null = null;
+      if (desktopHost.trim() && desktopToken.trim()) {
+        pairing = {
+          host: desktopHost.trim(),
+          port: 8765,
+          token: desktopToken.trim(),
+        };
+        await saveDesktopPairing(pairing);
+      } else {
+        pairing = await loadDesktopPairing();
+      }
+
+      if (pairing && (await probeDesktop(pairing))) {
+        try {
+          const handoff = await requestDesktopStartGig(pairing, {
+            displayName,
+            librarySource,
+            crowdProfileUrl: crowdProfile,
+          });
+          const next: BoothGig = {
+            sessionId: handoff.sessionId,
+            code: handoff.code,
+            djToken: handoff.djToken,
+            crowdUrl: handoff.crowdUrl,
+            crowdProfileUrl: handoff.crowdProfileUrl ?? crowdProfile,
+            displayName: handoff.displayName,
+            librarySource,
+          };
+          await saveGig(next);
+          setGig(next);
+          setSuggestions([]);
+          setScreen("live");
+          return;
+        } catch {
+          /* try cloud below */
+        }
+      }
+
       const res = await createSession(token, {
         name: "Tonight",
-        displayName: profile.displayName,
+        displayName,
         librarySource,
       });
       const next: BoothGig = {
@@ -128,14 +188,31 @@ export default function App() {
         code: res.session.code,
         djToken: res.djToken,
         crowdUrl: res.crowdUrl,
-        crowdProfileUrl: res.crowdProfileUrl ?? crowdProfileUrl(profile.handle),
-        displayName: res.session.displayName ?? profile.displayName,
+        crowdProfileUrl: res.crowdProfileUrl ?? crowdProfile,
+        displayName: res.session.displayName ?? displayName,
         librarySource,
       };
       await saveGig(next);
       setGig(next);
       setSuggestions([]);
       setScreen("live");
+
+      if (pairing && (await probeDesktop(pairing))) {
+        try {
+          await pushGigHandoff(pairing, {
+            sessionId: next.sessionId,
+            code: next.code,
+            djToken: next.djToken,
+            name: "Tonight",
+            displayName: next.displayName,
+            crowdUrl: next.crowdUrl,
+            crowdProfileUrl: next.crowdProfileUrl,
+            librarySource,
+          });
+        } catch {
+          /* laptop not on LAN */
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start gig");
     } finally {
@@ -223,6 +300,10 @@ export default function App() {
         <StartGigScreen
           profile={profile}
           librarySource={librarySource}
+          desktopHost={desktopHost}
+          desktopToken={desktopToken}
+          onDesktopHost={setDesktopHost}
+          onDesktopToken={setDesktopToken}
           error={error}
           busy={busy}
           onLibrarySource={(s) => {

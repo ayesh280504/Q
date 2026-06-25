@@ -3,6 +3,7 @@ export * from "./harmonic.js";
 export * from "./urls.js";
 export * from "./ble.js";
 export * from "./socialLinks.js";
+export * from "./lanHandoff.js";
 
 export type RequestStatus = "pending" | "accepted" | "declined";
 

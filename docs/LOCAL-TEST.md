@@ -124,6 +124,7 @@ Do this once before sending builds to friends.
 | Crowd search empty | Desktop → Sync now after import. Check API logs. |
 | Spotify search empty | Add Spotify keys to `.env`, restart API. |
 | Drag doesn't work | Must use Tauri desktop app; track needs `localPath` from library import. |
+| Phone gig won't appear on laptop | Same Wi‑Fi or laptop hotspot. Desktop **Settings → Phone link** → enter IP + token on **Q Booth mobile**. Allow port **8765** in Windows Firewall. |
 | Sign-in fails | Check `SUPABASE_URL` / anon key in `.env` and Supabase dashboard. |
 | API crashes on start (`better_sqlite3.node` / NODE_MODULE_VERSION) | Node version changed — run `npm rebuild better-sqlite3` from repo root, restart `dev:stack`. |
 
