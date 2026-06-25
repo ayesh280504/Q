@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import BoothLayout from "../components/BoothLayout";
 import FeatureGrid from "../components/FeatureGrid";
+import ScrollReveal from "../components/ScrollReveal";
 import {
   BOOTH_FEATURES,
   CROWD_FEATURES,
@@ -14,63 +15,63 @@ export default function FeaturesPage() {
       <section className="booth-hero booth-hero--compact">
         <p className="booth-kicker booth-kicker--purple">
           <span className="booth-kicker-dot" aria-hidden />
-          Everything Q ships
+          Features
         </p>
-        <h1 className="booth-section-title">Built for the booth. Not the brochure.</h1>
+        <h1 className="booth-section-title">Everything Q does.</h1>
         <p className="booth-lead">
-          Q is a DJ request system that reads your real library, lives beside Serato and Rekordbox,
-          and turns the crowd into fans after last call — without cloning every wedding-SaaS feature
-          on the market.
+          Real DJ software integration, crowd requests on LTE, and profiles after the gig.
         </p>
         <div className="booth-cta-row">
-          <Link to="/download" className="booth-btn-primary">Download booth app →</Link>
-          <Link to="/for-crowd" className="booth-btn-outline">What guests see →</Link>
+          <Link to="/download" className="booth-btn-primary">
+            Download →
+          </Link>
+          <Link to="/for-crowd" className="booth-btn-outline">
+            For guests →
+          </Link>
         </div>
       </section>
 
       <section className="booth-section">
         <p className="booth-kicker booth-kicker--pink">
           <span className="booth-kicker-dot" aria-hidden />
-          Booth · desktop
+          Booth
         </p>
-        <h2 className="booth-section-title">Run the floor from one screen.</h2>
+        <h2 className="booth-section-title">Desktop app</h2>
         <FeatureGrid features={BOOTH_FEATURES} columns={3} />
       </section>
 
       <section className="booth-section">
         <p className="booth-kicker booth-kicker--cyan">
           <span className="booth-kicker-dot" aria-hidden />
-          Crowd · phone
+          Crowd
         </p>
-        <h2 className="booth-section-title">Guests scan. Search. Done.</h2>
+        <h2 className="booth-section-title">Guest phone</h2>
         <FeatureGrid features={CROWD_FEATURES} columns={3} />
       </section>
 
       <section className="booth-section">
         <p className="booth-kicker booth-kicker--cyan">
           <span className="booth-kicker-dot" aria-hidden />
-          Community · web
+          Community
         </p>
-        <h2 className="booth-section-title">Identity after the gig.</h2>
+        <h2 className="booth-section-title">After the set</h2>
         <FeatureGrid features={COMMUNITY_FEATURES} columns={3} />
       </section>
 
       <section className="booth-section mkt-compare">
         <p className="booth-kicker booth-kicker--pink">
           <span className="booth-kicker-dot" aria-hidden />
-          Why DJs pick Q
+          Why Q
         </p>
-        <h2 className="booth-section-title">Depth where it matters.</h2>
-        <p className="booth-lead">
-          Other platforms sell the whole wedding business stack. Q wins on booth truth, Serato/Rekordbox
-          workflow, and crowd speed.
-        </p>
+        <h2 className="booth-section-title">Built for DJs who mix.</h2>
         <ul className="mkt-compare-list">
-          {COMPARE_NSR.map((row) => (
-            <li key={row.q} className="mkt-compare-row mkt-panel">
-              <span className="mkt-compare-q">{row.q}</span>
-              <span className="mkt-compare-them">Others: {row.them}</span>
-            </li>
+          {COMPARE_NSR.map((row, index) => (
+            <ScrollReveal key={row.q} delay={index * 60}>
+              <li className="mkt-compare-row mkt-panel">
+                <span className="mkt-compare-q">{row.q}</span>
+                <span className="mkt-compare-them">Others: {row.them}</span>
+              </li>
+            </ScrollReveal>
           ))}
         </ul>
       </section>

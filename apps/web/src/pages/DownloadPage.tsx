@@ -9,36 +9,12 @@ import { CHANGELOG_021 } from "../lib/marketingContent";
 const BOOTH_VERSION = "0.2.1";
 
 const FEATURES = [
-  {
-    n: "01",
-    title: "Command Center",
-    desc: "QR center, queue rail, Serato/Rekordbox now playing — one screen for the whole set.",
-  },
-  {
-    n: "02",
-    title: "Library truth",
-    desc: "Serato crates + rekordbox.xml + Spotify/Both crowd search. Privacy filters for VIP edits.",
-  },
-  {
-    n: "03",
-    title: "Crowd portal",
-    desc: "Guests scan on LTE. Search, optional shoutout, accept/decline toasts, share with friends.",
-  },
-  {
-    n: "04",
-    title: "Overlay dock",
-    desc: "Pin-on-top mini queue beside your DJ software. Sound + notification on new requests.",
-  },
-  {
-    n: "05",
-    title: "End gig + follow",
-    desc: "Kill requests for everyone. Crowd rates the set and follows your community profile.",
-  },
-  {
-    n: "06",
-    title: "Offline sync",
-    desc: "Accept offline, sync on hotspot. Auto Q Requests crate for Serato/Rekordbox.",
-  },
+  { n: "01", title: "Command Center", desc: "QR, queue, and now playing on one screen." },
+  { n: "02", title: "Library sync", desc: "Serato crates + Rekordbox XML for crowd search." },
+  { n: "03", title: "Crowd portal", desc: "Guests scan on LTE. Search and request." },
+  { n: "04", title: "Overlay dock", desc: "Mini queue pinned beside your DJ software." },
+  { n: "05", title: "End gig", desc: "Crowd rates the set and follows your profile." },
+  { n: "06", title: "Offline sync", desc: "Keep accepting requests. Sync when online." },
 ] as const;
 
 export default function DownloadPage() {
@@ -84,8 +60,7 @@ export default function DownloadPage() {
               </span>
             </h1>
             <p className="booth-hero-desc">
-              Q lives on your DJ laptop. Crowd requests fly into the browser — guests scan your QR
-              and ping the booth from their phones. No shouting, no app installs.
+              Crowd requests land on your screen. Guests scan your QR — no shouting, no app installs.
             </p>
           </div>
 
@@ -146,8 +121,7 @@ export default function DownloadPage() {
               </span>
             </h1>
             <p className="booth-lead">
-              Spin up a gig session, grab your QR, and accept crowd requests straight on the
-              screen. No shouting over the music.
+              Start a gig, grab your QR, accept requests on screen.
             </p>
             <button type="button" className="booth-btn-primary" onClick={openGigModal}>
               Start your gig →
@@ -168,8 +142,7 @@ export default function DownloadPage() {
               </span>
             </h2>
             <p className="booth-lead">
-              Hop straight back into the booth. Your library, queues, and crates are right where
-              you left them.
+              Jump back in. Your library and queues are where you left them.
             </p>
             <div className="booth-launch-wrap">
               <LaunchAppButton
@@ -209,9 +182,9 @@ export default function DownloadPage() {
           <span className="booth-kicker-dot" aria-hidden />
           Changelog
         </p>
-        <h2 className="booth-section-title">What&apos;s new in {BOOTH_VERSION}</h2>
+        <h2 className="booth-section-title">What&apos;s new</h2>
         <ul className="mkt-changelog">
-          {CHANGELOG_021.map((item) => (
+          {CHANGELOG_021.slice(0, 5).map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ul>
@@ -261,8 +234,7 @@ export default function DownloadPage() {
         </p>
         <h2 className="booth-section-title">Download Q</h2>
         <p className="booth-lead">
-          macOS and Windows booth apps. Install from a release build, or run from source while
-          installers are in beta.
+          macOS and Windows installers.
         </p>
         <div className="booth-download-grid">
           {installers.mac ? (

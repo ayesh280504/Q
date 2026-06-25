@@ -1070,3 +1070,52 @@
 .mkt-footer-links a:hover {
   color: #fff;
 }
+
+/* Scroll reveal — fade in on scroll */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(1.25rem);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scroll-reveal--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Keep grid/list semantics when wrapper is only for animation */
+.mkt-feature-grid > .scroll-reveal,
+.integrations-grid > .scroll-reveal,
+.mkt-compare-list > .scroll-reveal {
+  display: contents;
+}
+
+/* Hero entrance */
+.marketing-page .hero-content {
+  animation: mkt-fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mkt-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .marketing-page .hero-content {
+    animation: none;
+  }
+}

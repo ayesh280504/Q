@@ -18,7 +18,7 @@ export default function HeroScroll({ progress }: Props) {
       <div className="hero-content">
         <p className="hero-kicker">
           <span className="hero-kicker-dot" aria-hidden />
-          <span>// Booth access granted</span>
+          <span>// DJ request platform</span>
         </p>
         <h1 className="font-display hero-headline">
           <span className="hero-title-primary">The Future</span>
